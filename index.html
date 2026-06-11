@@ -112,14 +112,19 @@ const ctx = canvas.getContext("2d");
 
 // --- 画像の読み込み ---
 const deguLImg = new Image();
-deguLImg.src = 'kuku_l.png';  // 左向き画像のパス
+deguLImg.src = 'kuku_l.png';
 
 const deguRImg = new Image();
-deguRImg.src = 'kuku_r.png';  // 右向き画像のパス
+deguRImg.src = 'kuku_r.png';
 
-// 【新規追加】さつまいも画像の読み込み
 const potatoImg = new Image();
 potatoImg.src = 'satsumaimo.png';
+
+const chappieLImg = new Image();
+chappieLImg.src = 'chappie_l.png';
+
+const chappieRImg = new Image();
+chappieRImg.src = 'chappie_r.png';
 // --- 画像の読み込みここまで ---
 
 let facing;
@@ -127,11 +132,20 @@ let score;
 let bestScore;
 let gameOver;
 let path;
-let potatoPath; // 【新規追加】さつまいもの位置を記録する配列
+let potatoPath;
+
+let chappiePath;       
+let hasChappy;        
+let lastPlayerX = 0;  
+
+let previousStepX = 0;
+
+// 【新規追加】合流した瞬間（その歩）だけ後ろの描画をスキップするためのフラグ
+let isJoiningTurn = false;
 
 let timeLeft;
 let startTime;
-let timeBonus = 0; // 【新規追加】獲得したボーナス時間の合計秒数
+let timeBonus = 0;
 
 function updateButtons(){
 
@@ -169,11 +183,20 @@ function reset(){
     gameOver = false;
 
     timeLeft = 30;
-    timeBonus = 0; // ボーナス時間をリセット
+    timeBonus = 0;
     startTime = Date.now();
 
     path = [0];
-    potatoPath = [false]; // 最初のスタート地点にはさつまいもは置かない
+    potatoPath = [false];
+    
+    chappiePath = [false]; 
+    hasChappy = false;
+    lastPlayerX = 0;
+    
+    previousStepX = 0;
+    isJoiningTurn = false; // リセット
+
+    let chappiePlaced = false;
 
     for(let i=0;i<100;i++){
 
@@ -184,8 +207,14 @@ function reset(){
             (Math.random()<0.5 ? -1 : 1)
         );
 
-        // 【新規追加】20%の確率でさつまいもを出現させる
-        potatoPath.push(Math.random() < 0.05);
+        potatoPath.push(Math.random() < 0.10);
+
+        if (!chappiePlaced && i > 5 && Math.random() < 0.05) {
+            chappiePath.push(true);
+            chappiePlaced = true;
+        } else {
+            chappiePath.push(false);
+        }
     }
 
     updateButtons();
@@ -226,6 +255,8 @@ function move(turn){
         moveDir = facing;
     }
 
+    lastPlayerX = path[0] - path[1];
+
     const dx = path[1] - path[0];
 
     if(dx !== moveDir){
@@ -236,13 +267,26 @@ function move(turn){
 
     score++;
 
-    path.shift();
-    potatoPath.shift(); // プレイヤーの一歩進捗に合わせてさつまいもデータもシフト
+    previousStepX = path[0] - path[1];
 
-    // 【新規追加】進んだ先の階段（インデックス0）にさつまいもがあれば取得
+    // 毎歩、基本は合流ターンフラグを戻しておく
+    isJoiningTurn = false;
+
+    path.shift();
+    potatoPath.shift();
+    chappiePath.shift(); 
+
     if (potatoPath[0]) {
-        timeBonus += 3; // ボーナス時間を3秒追加
-        potatoPath[0] = false; // 取ったので消す
+        timeBonus += 3;
+        potatoPath[0] = false;
+    }
+
+    // 【修正】チャッピーとの合流判定
+    if (chappiePath[0]) {
+        score += 20;         
+        hasChappy = true;    
+        isJoiningTurn = true;  // 「今、合流した瞬間です」のフラグをONにする
+        chappiePath[0] = false; 
     }
 
     const last =
@@ -253,8 +297,13 @@ function move(turn){
         (Math.random()<0.5 ? -1 : 1)
     );
 
-    // 【新規追加】新しく生成される先の階段にも20%の確率でさつまいもを配置
-    potatoPath.push(Math.random() < 0.20);
+    potatoPath.push(Math.random() < 0.10);
+
+    if (!hasChappy && !chappiePath.includes(true) && Math.random() < 0.05) {
+        chappiePath.push(true);
+    } else {
+        chappiePath.push(false);
+    }
 }
 
 reset();
@@ -297,11 +346,23 @@ document
     reset
 );
 
+function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = true) {
+    if (!image.complete || image.naturalWidth === 0) return;
+    
+    const aspectRatio = image.naturalHeight / image.naturalWidth;
+    const drawWidth = baseWidth;
+    const drawHeight = baseWidth * aspectRatio;
+    
+    const x = targetX - drawWidth / 2;
+    const y = alignBottom ? (targetY - drawHeight) : (targetY - drawHeight / 2);
+    
+    ctx.drawImage(image, x, y, drawWidth, drawHeight);
+}
+
 function draw(){
 
     if(!gameOver){
 
-        // 【修正】経過時間からボーナス時間を引くことで、残り時間を実質的に増やします
         timeLeft =
             Math.max(
                 0,
@@ -327,9 +388,22 @@ function draw(){
     );
 
     const centerX = 250;
-    const playerY = 450;
+    const playerY = 450; 
 
-    // 階段の描画
+    const prevX = centerX + previousStepX * 50;
+    const prevY = playerY + 40; 
+
+    if (score > 0) {
+        ctx.strokeStyle = "cyan";
+        ctx.strokeRect(
+            prevX - 25,
+            prevY - 8,
+            50,
+            16
+        );
+    }
+
+    // 階段の描画（通常の0〜11段）
     for(let i=0;i<12;i++){
 
         const x =
@@ -354,22 +428,25 @@ function draw(){
             16
         );
 
-        // 【新規追加】さつまいもの描画処理
-        // その階段（i番目）にさつまいもフラグ（true）が立っていれば画像を描画
-        // ※プレイヤーがいる最初の階段（i=0）の芋はmove内で即時回収されるため基本表示されません
+        // さつまい目の描画
         if (potatoPath[i]) {
-            const itemSize = 24; // さつまいもの表示サイズ（24x24ピクセル）
+            const itemSize = 24;
             ctx.drawImage(
                 potatoImg,
-                x - itemSize / 2,     // 階段の横中央
-                y - itemSize - 4,     // 階段の少し上
+                x - itemSize / 2,
+                y - itemSize - 4,
                 itemSize,
                 itemSize
             );
         }
+
+        // 階段の上で待っているチャッピー
+        if (chappiePath[i]) {
+            drawImageWithScale(chappieRImg, x, y + 8, 36, true);
+        }
     }
 
-    // 画像の描画処理
+    // プレイヤーの描画処理
     const pImg = facing === -1 ? deguLImg : deguRImg;
     const pSize = 48;
 
@@ -380,6 +457,15 @@ function draw(){
         pSize,
         pSize
     );
+
+    // 【修正】後ろをついてくるチャッピーの描画処理
+    // すでに合流していて、かつ「合流した瞬間（その1歩）」ではない時だけ後ろに描画する
+    if (hasChappy && !isJoiningTurn) {
+        const cImg = facing === -1 ? chappieLImg : chappieRImg;
+        
+        // 過去の階段（prevX, prevY）と完全に一致する位置に描画
+        drawImageWithScale(cImg, prevX, prevY + 8, 36, true);
+    }
 
     // スコアなどの情報表示
     ctx.fillStyle = "white";
