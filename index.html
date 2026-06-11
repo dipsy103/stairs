@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width,initial-scale=1.0,user-scalable=no">
+
+<title>Infinite Stairs</title>
+
+<style>
+
+html,body{
+    margin:0;
+    background:#111;
+    overflow:hidden;
+    font-family:sans-serif;
+}
+
+body{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+#gameWrap{
+    position:relative;
+    width:min(100vw,500px);
+}
+
+canvas{
+    display:block;
+    width:100%;
+    height:auto;
+    background:#222;
+    border:1px solid #555;
+}
+
+#controls{
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:16px;
+
+    display:flex;
+    justify-content:space-between;
+
+    padding:0 16px;
+    box-sizing:border-box;
+}
+
+#gameOverControls{
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:16px;
+
+    display:none;
+    justify-content:center;
+}
+
+button{
+
+    width:120px;
+    height:70px;
+
+    border-radius:14px;
+
+    border:2px solid rgba(255,255,255,.5);
+
+    background:rgba(255,255,255,.15);
+
+    color:white;
+
+    font-size:24px;
+    font-weight:bold;
+
+    backdrop-filter:blur(4px);
+
+    touch-action:manipulation;
+}
+
+button:active{
+    background:rgba(255,255,255,.3);
+}
+
+</style>
+</head>
+<body>
+
+<div id="gameWrap">
+
+    <canvas id="c"
+            width="500"
+            height="600"></canvas>
+
+    <div id="controls">
+        <button id="turnBtn">TURN</button>
+        <button id="goBtn">GO</button>
+    </div>
+
+    <div id="gameOverControls">
+        <button id="restartBtn">RESTART</button>
+    </div>
+
+</div>
+
+<script>
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+let facing;
+let score;
+let bestScore;
+let gameOver;
+let path;
+
+let timeLeft;
+let startTime;
+
+function updateButtons(){
+
+    if(gameOver){
+
+        document
+            .getElementById("controls")
+            .style.display = "none";
+
+        document
+            .getElementById("gameOverControls")
+            .style.display = "flex";
+
+    }else{
+
+        document
+            .getElementById("controls")
+            .style.display = "flex";
+
+        document
+            .getElementById("gameOverControls")
+            .style.display = "none";
+    }
+}
+
+function reset(){
+
+    bestScore =
+        Number(
+            localStorage.getItem("bestScore") || 0
+        );
+
+    facing = 1;
+    score = 0;
+    gameOver = false;
+
+    timeLeft = 30;
+    startTime = Date.now();
+
+    path = [0];
+
+    for(let i=0;i<100;i++){
+
+        const last = path[path.length-1];
+
+        path.push(
+            last +
+            (Math.random()<0.5 ? -1 : 1)
+        );
+    }
+
+    updateButtons();
+}
+
+function finishGame(){
+
+    if(score > bestScore){
+
+        bestScore = score;
+
+        localStorage.setItem(
+            "bestScore",
+            score
+        );
+    }
+
+    gameOver = true;
+
+    updateButtons();
+}
+
+function move(turn){
+
+    if(gameOver){
+        return;
+    }
+
+    let moveDir;
+
+    if(turn){
+
+        facing *= -1;
+        moveDir = facing;
+
+    }else{
+
+        moveDir = facing;
+    }
+
+    const dx = path[1] - path[0];
+
+    if(dx !== moveDir){
+
+        finishGame();
+        return;
+    }
+
+    score++;
+
+    path.shift();
+
+    const last =
+        path[path.length-1];
+
+    path.push(
+        last +
+        (Math.random()<0.5 ? -1 : 1)
+    );
+}
+
+reset();
+
+document.addEventListener("keydown",e=>{
+
+    if(e.code==="Space"){
+
+        e.preventDefault();
+
+        move(false);
+    }
+    else if(
+        e.code==="ControlLeft" ||
+        e.code==="ControlRight"
+    ){
+
+        move(true);
+    }
+});
+
+document
+.getElementById("goBtn")
+.addEventListener(
+    "click",
+    ()=>move(false)
+);
+
+document
+.getElementById("turnBtn")
+.addEventListener(
+    "click",
+    ()=>move(true)
+);
+
+document
+.getElementById("restartBtn")
+.addEventListener(
+    "click",
+    reset
+);
+
+function draw(){
+
+    if(!gameOver){
+
+        timeLeft =
+            Math.max(
+                0,
+                30 -
+                (
+                    Date.now()
+                    -
+                    startTime
+                ) / 1000
+            );
+
+        if(timeLeft <= 0){
+
+            finishGame();
+        }
+    }
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    const centerX = 250;
+    const playerY = 450;
+
+    for(let i=0;i<12;i++){
+
+        const x =
+            centerX +
+            (
+                path[i]
+                -
+                path[0]
+            ) * 50;
+
+        const y =
+            playerY
+            -
+            i * 40;
+
+        ctx.strokeStyle = "cyan";
+
+        ctx.strokeRect(
+            x - 25,
+            y - 8,
+            50,
+            16
+        );
+    }
+
+    ctx.fillStyle = "yellow";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        centerX,
+        playerY - 25,
+        12,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.fillStyle = "white";
+    ctx.font = "24px sans-serif";
+
+    ctx.fillText(
+        facing===1
+            ? "→"
+            : "←",
+        centerX - 12,
+        playerY - 45
+    );
+
+    ctx.fillText(
+        "Score: " + score,
+        20,
+        40
+    );
+
+    ctx.fillText(
+        "Time: " +
+        timeLeft.toFixed(1),
+        20,
+        75
+    );
+
+    ctx.fillText(
+        "Best: " +
+        bestScore,
+        20,
+        110
+    );
+
+    if(gameOver){
+
+        ctx.fillStyle = "red";
+
+        ctx.font =
+            "40px sans-serif";
+
+        ctx.fillText(
+            "TIME UP",
+            145,
+            240
+        );
+
+        ctx.font =
+            "28px sans-serif";
+
+        ctx.fillText(
+            "Score : " + score,
+            160,
+            290
+        );
+
+        ctx.fillText(
+            "Best : " + bestScore,
+            160,
+            330
+        );
+    }
+
+    requestAnimationFrame(draw);
+}
+
+draw();
+
+</script>
+
+</body>
+</html>
