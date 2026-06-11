@@ -209,7 +209,7 @@ function reset(){
 
         potatoPath.push(Math.random() < 0.10);
 
-        if (!chappiePlaced && i > 5 && Math.random() < 0.05) {
+        if (!chappiePlaced && i > 5 && Math.random() < 0.55) {
             chappiePath.push(true);
             chappiePlaced = true;
         } else {
@@ -299,7 +299,7 @@ function move(turn){
 
     potatoPath.push(Math.random() < 0.10);
 
-    if (!hasChappy && !chappiePath.includes(true) && Math.random() < 0.05) {
+    if (!hasChappy && !chappiePath.includes(true) && Math.random() < 0.55) {
         chappiePath.push(true);
     } else {
         chappiePath.push(false);
