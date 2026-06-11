@@ -5,7 +5,7 @@
 <meta name="viewport"
       content="width=device-width,initial-scale=1.0,user-scalable=no">
 
-<title>Infinite Stairs</title>
+<title>Infinite Stairs - Degu Edition</title>
 
 <style>
 
@@ -109,6 +109,17 @@ button:active{
 
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
+
+// --- 【新規追加】画像の読み込み ---
+const deguLImg = new Image();
+deguLImg.src = 'kuku_l.png';  // 左向き画像のパス
+
+const deguRImg = new Image();
+deguRImg.src = 'kuku_r.png';  // 右向き画像のパス
+
+// 画像が読み込まれるまでゲームの描画を待つ必要はありません。
+// draw()が呼ばれたときに読み込まれていれば描画されます。
+// --- 画像の読み込みここまで ---
 
 let facing;
 let score;
@@ -299,6 +310,7 @@ function draw(){
     const centerX = 250;
     const playerY = 450;
 
+    // 階段の描画
     for(let i=0;i<12;i++){
 
         const x =
@@ -324,30 +336,31 @@ function draw(){
         );
     }
 
-    ctx.fillStyle = "yellow";
+    // --- 【修正】画像の描画処理 ---
+    
+    // 現在の向き（facing）に応じて描画する画像を選択
+    // facing が -1 (左向き) なら deguLImg、1 (右向き) なら deguRImg
+    const pImg = facing === -1 ? deguLImg : deguRImg;
+    
+    // 画像のサイズ（お好みに合わせて調整してください）
+    const pSize = 48; // 例：縦横48ピクセル
 
-    ctx.beginPath();
-
-    ctx.arc(
-        centerX,
-        playerY - 25,
-        12,
-        0,
-        Math.PI * 2
+    // 画像を描画
+    // drawImage(image, x, y, width, height)
+    // 階段の中央にキャラクターが来るように、centerX と playerY を調整します。
+    // 画像の「下端の中央」を、プレイヤーの位置（階段の上）に合わせます。
+    ctx.drawImage(
+        pImg,
+        centerX - pSize / 2,         // 横位置（centerXから幅の半分を引いて中央寄せ）
+        playerY - pSize + 8,        // 縦位置（playerYから高さを引いて上に乗せる。階段に食い込まないように +8で微調整）
+        pSize,                      // 幅
+        pSize                       // 高さ
     );
+    // --- 画像の描画処理ここまで ---
 
-    ctx.fill();
-
+    // スコアなどの情報表示
     ctx.fillStyle = "white";
     ctx.font = "24px sans-serif";
-
-    ctx.fillText(
-        facing===1
-            ? "→"
-            : "←",
-        centerX - 12,
-        playerY - 45
-    );
 
     ctx.fillText(
         "Score: " + score,
