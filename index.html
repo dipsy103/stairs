@@ -110,6 +110,12 @@ button:active{
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
+// --- 【新規追加】ゲームバランス調整用の定数 ---
+const POTATO_CHANCE = 0.10;      // さつまいもの出現確率（0.10 = 10%）
+const CHAPPIE_CHANCE = 0.05;     // チャッピーの出現確率（0.05 = 5%）
+const CHAPPIE_BONUS_SCORE = 50;  // チャッピーと合流した時の加算点（50点）
+// -------------------------------------------
+
 // --- 画像の読み込み ---
 const deguLImg = new Image();
 deguLImg.src = 'kuku_l.png';
@@ -139,9 +145,7 @@ let hasChappy;
 let lastPlayerX = 0;  
 
 let previousStepX = 0;
-
-// 【新規追加】合流した瞬間（その歩）だけ後ろの描画をスキップするためのフラグ
-let isJoiningTurn = false;
+let isJoiningTurn = false; 
 
 let timeLeft;
 let startTime;
@@ -194,7 +198,7 @@ function reset(){
     lastPlayerX = 0;
     
     previousStepX = 0;
-    isJoiningTurn = false; // リセット
+    isJoiningTurn = false; 
 
     let chappiePlaced = false;
 
@@ -207,9 +211,11 @@ function reset(){
             (Math.random()<0.5 ? -1 : 1)
         );
 
-        potatoPath.push(Math.random() < 0.10);
+        // 【修正】定数を使用して確率を判定
+        potatoPath.push(Math.random() < POTATO_CHANCE);
 
-        if (!chappiePlaced && i > 5 && Math.random() < 0.55) {
+        // 【修正】定数を使用して確率を判定
+        if (!chappiePlaced && i > 5 && Math.random() < CHAPPIE_CHANCE) {
             chappiePath.push(true);
             chappiePlaced = true;
         } else {
@@ -269,7 +275,6 @@ function move(turn){
 
     previousStepX = path[0] - path[1];
 
-    // 毎歩、基本は合流ターンフラグを戻しておく
     isJoiningTurn = false;
 
     path.shift();
@@ -281,11 +286,11 @@ function move(turn){
         potatoPath[0] = false;
     }
 
-    // 【修正】チャッピーとの合流判定
     if (chappiePath[0]) {
-        score += 50;         
+        // 【修正】定数を使用して加算点を反映
+        score += CHAPPIE_BONUS_SCORE;         
         hasChappy = true;    
-        isJoiningTurn = true;  // 「今、合流した瞬間です」のフラグをONにする
+        isJoiningTurn = true;  
         chappiePath[0] = false; 
     }
 
@@ -297,9 +302,11 @@ function move(turn){
         (Math.random()<0.5 ? -1 : 1)
     );
 
-    potatoPath.push(Math.random() < 0.10);
+    // 【修正】定数を使用して確率を判定
+    potatoPath.push(Math.random() < POTATO_CHANCE);
 
-    if (!hasChappy && !chappiePath.includes(true) && Math.random() < 0.55) {
+    // 【修正】定数を使用して確率を判定
+    if (!hasChappy && !chappiePath.includes(true) && Math.random() < CHAPPIE_CHANCE) {
         chappiePath.push(true);
     } else {
         chappiePath.push(false);
@@ -458,8 +465,7 @@ function draw(){
         pSize
     );
 
-    // 【修正】後ろをついてくるチャッピーの描画処理
-    // すでに合流していて、かつ「合流した瞬間（その1歩）」ではない時だけ後ろに描画する
+    // 後ろをついてくるチャッピーの描画処理
     if (hasChappy && !isJoiningTurn) {
         const cImg = facing === -1 ? chappieLImg : chappieRImg;
         
