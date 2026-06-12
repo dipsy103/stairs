@@ -110,7 +110,7 @@ button:active{
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
-// --- 【新規追加】ゲームバランス調整用の定数 ---
+// --- ゲームバランス調整用の定数 ---
 const POTATO_CHANCE = 0.05;      // さつまいもの出現確率
 const CHAPPIE_CHANCE = 0.02;     // チャッピーの出現確率
 const CHAPPIE_BONUS_SCORE = 30;  // チャッピーと合流した時の加算点
@@ -211,10 +211,8 @@ function reset(){
             (Math.random()<0.5 ? -1 : 1)
         );
 
-        // 【修正】定数を使用して確率を判定
         potatoPath.push(Math.random() < POTATO_CHANCE);
 
-        // 【修正】定数を使用して確率を判定
         if (!chappiePlaced && i > 5 && Math.random() < CHAPPIE_CHANCE) {
             chappiePath.push(true);
             chappiePlaced = true;
@@ -287,7 +285,6 @@ function move(turn){
     }
 
     if (chappiePath[0]) {
-        // 【修正】定数を使用して加算点を反映
         score += CHAPPIE_BONUS_SCORE;         
         hasChappy = true;    
         isJoiningTurn = true;  
@@ -302,10 +299,8 @@ function move(turn){
         (Math.random()<0.5 ? -1 : 1)
     );
 
-    // 【修正】定数を使用して確率を判定
     potatoPath.push(Math.random() < POTATO_CHANCE);
 
-    // 【修正】定数を使用して確率を判定
     if (!hasChappy && !chappiePath.includes(true) && Math.random() < CHAPPIE_CHANCE) {
         chappiePath.push(true);
     } else {
@@ -453,7 +448,20 @@ function draw(){
         }
     }
 
-    // プレイヤーの描画処理
+    // --- 【修正】チャッピーとククの描画処理（重ねる対応） ---
+    const cImg = facing === -1 ? chappieLImg : chappieRImg;
+
+    if (hasChappy) {
+        if (isJoiningTurn) {
+            // 合流した瞬間：ククと同じ足元の位置（centerX, playerY）に少しサイズを合わせて描画
+            drawImageWithScale(cImg, centerX, playerY + 8, 36, true);
+        } else {
+            // 通常の追従時：1歩後ろの過去の階段に描画
+            drawImageWithScale(cImg, prevX, prevY + 8, 36, true);
+        }
+    }
+
+    // プレイヤー（クク）の描画処理（チャッピーの上に重なるよう後に描画）
     const pImg = facing === -1 ? deguLImg : deguRImg;
     const pSize = 48;
 
@@ -464,14 +472,7 @@ function draw(){
         pSize,
         pSize
     );
-
-    // 後ろをついてくるチャッピーの描画処理
-    if (hasChappy && !isJoiningTurn) {
-        const cImg = facing === -1 ? chappieLImg : chappieRImg;
-        
-        // 過去の階段（prevX, prevY）と完全に一致する位置に描画
-        drawImageWithScale(cImg, prevX, prevY + 8, 36, true);
-    }
+    // -----------------------------------------------------
 
     // スコアなどの情報表示
     ctx.fillStyle = "white";
