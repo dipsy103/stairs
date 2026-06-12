@@ -78,6 +78,11 @@ button{
     backdrop-filter:blur(4px);
 
     touch-action:manipulation;
+
+    /* 【修正】ボタン内のテキスト選択・長押しメニューを完全に禁止 */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 button:active{
@@ -327,26 +332,24 @@ document.addEventListener("keydown",e=>{
     }
 });
 
-document
-.getElementById("goBtn")
-.addEventListener(
-    "click",
-    ()=>move(false)
-);
+// 【修正】スマホでの誤動作・文字選択を防ぎ、超高速で反応させるために pointerdown/touchstart に変更
+// さらにダブルタップによるズームなどのブラウザ標準動作を防ぐために e.preventDefault() を入れます
 
-document
-.getElementById("turnBtn")
-.addEventListener(
-    "click",
-    ()=>move(true)
-);
+const goBtn = document.getElementById("goBtn");
+const turnBtn = document.getElementById("turnBtn");
+const restartBtn = document.getElementById("restartBtn");
 
-document
-.getElementById("restartBtn")
-.addEventListener(
-    "click",
-    reset
-);
+function attachButtonEvent(btn, callback) {
+    // タッチ環境なら touchstart、PCなら mousedown の両方に対応する pointerdown を使用
+    btn.addEventListener("pointerdown", (e) => {
+        e.preventDefault(); // 文字選択やズームなどのブラウザ標準動作をブロック
+        callback();
+    });
+}
+
+attachButtonEvent(goBtn, () => move(false));
+attachButtonEvent(turnBtn, () => move(true));
+attachButtonEvent(restartBtn, reset);
 
 function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = true) {
     if (!image.complete || image.naturalWidth === 0) return;
@@ -448,20 +451,18 @@ function draw(){
         }
     }
 
-    // --- 【修正】チャッピーとククの描画処理（重ねる対応） ---
+    // チャッピーとククの描画処理（重ねる対応）
     const cImg = facing === -1 ? chappieLImg : chappieRImg;
 
     if (hasChappy) {
         if (isJoiningTurn) {
-            // 合流した瞬間：ククと同じ足元の位置（centerX, playerY）に少しサイズを合わせて描画
             drawImageWithScale(cImg, centerX, playerY + 8, 36, true);
         } else {
-            // 通常の追従時：1歩後ろの過去の階段に描画
             drawImageWithScale(cImg, prevX, prevY + 8, 36, true);
         }
     }
 
-    // プレイヤー（クク）の描画処理（チャッピーの上に重なるよう後に描画）
+    // プレイヤー（クク）の描画処理
     const pImg = facing === -1 ? deguLImg : deguRImg;
     const pSize = 48;
 
@@ -472,7 +473,6 @@ function draw(){
         pSize,
         pSize
     );
-    // -----------------------------------------------------
 
     // スコアなどの情報表示
     ctx.fillStyle = "white";
