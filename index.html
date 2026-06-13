@@ -115,7 +115,7 @@ const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
 // --- ゲームバランス調整用の定数 ---
-const POTATO_CHANCE = 0.05;      // さつまいもの出現確率
+const POTATO_CHANCE = 0.05;      // さつまいものの出現確率
 const CHAPPIE_CHANCE = 0.02;     // チャッピーの出現確率
 const CHAPPIE_BONUS_SCORE = 30;  // チャッピーと合流した時の加算点
 // -------------------------------------------
@@ -155,10 +155,9 @@ let timeLeft;
 let startTime;
 let timeBonus = 0;
 
-// 【新規追加】ハートエフェクト管理用の変数
 let heartActive = false;
 let heartStartTime = 0;
-const HEART_DURATION = 600; // ハートが表示される時間（ミリ秒、600 = 0.6秒）
+const HEART_DURATION = 600; 
 
 function updateButtons(){
 
@@ -209,7 +208,6 @@ function reset(){
     previousStepX = 0;
     isJoiningTurn = false; 
 
-    // ハートをリセット
     heartActive = false;
 
     let chappiePlaced = false;
@@ -302,7 +300,6 @@ function move(turn){
         isJoiningTurn = true;  
         chappiePath[0] = false; 
 
-        // 【修正】チャッピーと合流した瞬間にハートエフェクトを開始
         heartActive = true;
         heartStartTime = Date.now();
     }
@@ -371,21 +368,22 @@ function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = tr
     ctx.drawImage(image, x, y, drawWidth, drawHeight);
 }
 
+// 【修正】色のサイクルを逆回転に変更
 function getStairColor(currentScore) {
-    const baseHue = 180; 
+    const baseHue = 180; // 初期値はシアン（水色）
     const step = Math.floor(currentScore / 100);
-    const hue = (baseHue + step * 60) % 360;
+    
+    // マイナス（逆回転）にして、360を足してから剰余演算をすることで、マイナスの値になるのを防ぐ
+    const hue = (baseHue - step * 60 + 3600) % 360;
+    
     return `hsl(${hue}, 100%, 50%)`;
 }
 
-// 【新規追加】プログラムでハートを描画する関数
 function drawHeart(x, y, size) {
     ctx.beginPath();
     ctx.moveTo(x, y + size / 4);
-    // 左半分
     ctx.bezierCurveTo(x, y - size / 2, x - size, y - size / 2, x - size, y + size / 4);
     ctx.bezierCurveTo(x - size, y + size * 0.75, x, y + size * 1.1, x, y + size * 1.3);
-    // 右半分
     ctx.bezierCurveTo(x, y + size * 1.1, x + size, y + size * 0.75, x + size, y + size / 4);
     ctx.bezierCurveTo(x + size, y - size / 2, x, y - size / 2, x, y + size / 4);
     ctx.closePath();
@@ -504,41 +502,33 @@ function draw(){
         pSize
     );
 
-    // --- 【新規追加】ハートエフェクトの描画ロジック ---
+    // ハートエフェクトの描画ロジック
     if (heartActive) {
         const elapsed = Date.now() - heartStartTime;
         
         if (elapsed > HEART_DURATION) {
-            heartActive = false; // 指定時間を過ぎたらエフェクト終了
+            heartActive = false; 
         } else {
-            // アニメーションの進行度（0.0 〜 1.0）
             const progress = elapsed / HEART_DURATION;
-            
-            // 進行度に応じて、徐々に上に昇らせる（-50px分）
             const heartY = (playerY - 45) - (progress * 50);
             
-            // 進行度に応じて、フワッと現れてから完全に消えるように不透明度(Alpha)を計算
-            // 前半でフェードイン、後半でフェードアウト
             let alpha = 1;
             if (progress < 0.2) {
-                alpha = progress / 0.2; // 最初の20%の期間でフェードイン
+                alpha = progress / 0.2; 
             } else {
-                alpha = 1 - (progress - 0.2) / 0.8; // 残りの80%の期間でフェードアウト
+                alpha = 1 - (progress - 0.2) / 0.8; 
             }
             
-            // 進行度に応じてサイズも少しだけ大きくする（ポップアップ感）
             const currentSize = 10 + progress * 8;
 
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.fillStyle = "#ff4a8d"; // かわいいピンクラベンダー色
+            ctx.fillStyle = "#ff4a8d"; 
             
-            // ククとチャッピーの頭上（centerX）に描画
             drawHeart(centerX, heartY, currentSize);
             ctx.restore();
         }
     }
-    // -------------------------------------------------
 
     // スコアなどの情報表示
     ctx.fillStyle = "white";
