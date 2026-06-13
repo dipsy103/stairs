@@ -5,7 +5,7 @@
 <meta name="viewport"
       content="width=device-width,initial-scale=1.0,user-scalable=no">
 
-<title>Infinite Stairs - Degu Edition</title>
+<title>Kuku's Stairs - Degu Edition</title>
 
 <style>
 
@@ -42,14 +42,13 @@ canvas{
     right:0;
     bottom:16px;
 
-    display:none; /* 初期は非表示 */
+    display:none;
     justify-content:space-between;
 
     padding:0 16px;
     box-sizing:border-box;
 }
 
-/* 【新規】ゲーム開始前のスタート用コントロール */
 #startControls {
     position:absolute;
     left:0;
@@ -156,8 +155,8 @@ let facing;
 let score;
 let bestScore;
 let gameOver;
-let isStarted = false; // 【新規】ゲームが始まっているかどうかのフラグ
-let gameOverReason = ""; // 【新規】ゲームオーバーの理由（"TIME_UP" または "MISS"）
+let isStarted = false; 
+let gameOverReason = ""; 
 let path;
 let potatoPath;
 
@@ -178,7 +177,6 @@ const HEART_DURATION = 600;
 
 function updateButtons(){
     if(!isStarted){
-        // 開始前はSTARTボタンのみ表示
         document.getElementById("startControls").style.display = "flex";
         document.getElementById("controls").style.display = "none";
         document.getElementById("gameOverControls").style.display = "none";
@@ -194,12 +192,11 @@ function updateButtons(){
     }
 }
 
-// 【新規】ゲーム画面を初期化して待機状態にする関数
-function initGame() {
+// 引数 autoStart が true の場合は、初期化と同時にタイマーを動かしてゲームを開始する
+function initGame(autoStart = false) {
     bestScore = Number(localStorage.getItem("bestScore") || 0);
     score = 0;
     gameOver = false;
-    isStarted = false;
     gameOverReason = "";
 
     timeLeft = 30;
@@ -229,13 +226,20 @@ function initGame() {
         }
     }
 
-    // 【修正】最初の階段（path[1] - path[0]）の方向を向く（-1なら左、1なら右）
     facing = path[1] - path[0];
+
+    if (autoStart) {
+        // 【修正】RESTART時は即座にゲームを開始状態にする
+        isStarted = true;
+        startTime = Date.now();
+    } else {
+        // 初回表示時は待機状態
+        isStarted = false;
+    }
 
     updateButtons();
 }
 
-// 【新規】STARTボタンを押した時に実際に動かす関数
 function startGame() {
     isStarted = true;
     startTime = Date.now();
@@ -248,12 +252,11 @@ function finishGame(reason){
         localStorage.setItem("bestScore", score);
     }
     gameOver = true;
-    gameOverReason = reason; // 【修正】理由を保存
+    gameOverReason = reason; 
     updateButtons();
 }
 
 function move(turn){
-    // ゲームが始まっていない、または終了しているときは動かさない
     if(!isStarted || gameOver){
         return;
     }
@@ -271,7 +274,7 @@ function move(turn){
     const dx = path[1] - path[0];
 
     if(dx !== moveDir){
-        finishGame("MISS"); // 【修正】踏み外しのミス
+        finishGame("MISS"); 
         return;
     }
 
@@ -309,14 +312,20 @@ function move(turn){
     }
 }
 
-// 初期化
-initGame();
+// 初回起動は待機モードで初期化
+initGame(false);
 
 document.addEventListener("keydown",e=>{
-    // スペースキーまたはコントロールキーでゲーム開始できるように
     if(!isStarted && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) {
         e.preventDefault();
         startGame();
+        return;
+    }
+
+    // ゲームオーバー時に何かキーを押したら即座に次のゲームを開始
+    if(gameOver && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) {
+        e.preventDefault();
+        initGame(true);
         return;
     }
 
@@ -341,10 +350,10 @@ function attachButtonEvent(btn, callback) {
     });
 }
 
-attachButtonEvent(startBtn, startGame); // 【新規】STARTボタンのイベント
+attachButtonEvent(startBtn, startGame);
 attachButtonEvent(goBtn, () => move(false));
 attachButtonEvent(turnBtn, () => move(true));
-attachButtonEvent(restartBtn, initGame); // 【修正】リスタート時はinitGameを呼ぶ
+attachButtonEvent(restartBtn, () => initGame(true)); // 【修正】リスタート時は引数を true にして即座に開始
 
 function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = true) {
     if (!image.complete || image.naturalWidth === 0) return;
@@ -379,11 +388,10 @@ function drawHeart(x, y, size) {
 
 function draw(){
 
-    // 【修正】ゲーム開始後のみタイマーカウントダウンを行う
     if(isStarted && !gameOver){
         timeLeft = Math.max(0, 30 + timeBonus - (Date.now() - startTime) / 1000);
         if(timeLeft <= 0){
-            finishGame("TIME_UP"); // 【修正】時間切れ
+            finishGame("TIME_UP"); 
         }
     }
 
@@ -460,7 +468,7 @@ function draw(){
     ctx.fillText("Time: " + timeLeft.toFixed(1), 20, 75);
     ctx.fillText("Best: " + bestScore, 20, 110);
 
-    // 【修正】開始前のタイトルテキスト表示
+    // 【修正】タイトルを Kuku's Stairs に変更
     if (!isStarted) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -468,15 +476,14 @@ function draw(){
         ctx.fillStyle = "cyan";
         ctx.font = "40px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("Infinite Stairs", canvas.width / 2, 220);
+        ctx.fillText("Kuku's Stairs", canvas.width / 2, 220);
         
         ctx.fillStyle = "white";
         ctx.font = "20px sans-serif";
         ctx.fillText("Press START to Play", canvas.width / 2, 280);
-        ctx.textAlign = "left"; // 元に戻す
+        ctx.textAlign = "left"; 
     }
 
-    // 【修正】ゲームオーバー時のテキスト出し分け
     if(gameOver){
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -495,7 +502,7 @@ function draw(){
         ctx.font = "28px sans-serif";
         ctx.fillText("Score : " + score, canvas.width / 2, 280);
         ctx.fillText("Best : " + bestScore, canvas.width / 2, 320);
-        ctx.textAlign = "left"; // 元に戻す
+        ctx.textAlign = "left"; 
     }
 
     requestAnimationFrame(draw);
