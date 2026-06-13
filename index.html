@@ -32,7 +32,7 @@ canvas{
     display:block;
     width:100%;
     height:auto;
-    background:#222;
+    background:#111526;
     border:1px solid #555;
 }
 
@@ -150,6 +150,10 @@ chappieLImg.src = 'chappie_l.png';
 
 const chappieRImg = new Image();
 chappieRImg.src = 'chappie_r.png';
+
+// 【新規】ユーザー用意のシルエット画像
+const silhouetteImg = new Image();
+silhouetteImg.src = 'silhouette.png';
 // --- 画像の読み込みここまで ---
 
 let facing;
@@ -182,6 +186,71 @@ let smokeX = 0;
 let smokeY = 0;
 const SMOKE_DURATION = 500; 
 let flashActive = false;    
+
+// --- 背景エフェクト用の管理変数 ---
+let bgStars = [];        
+let shootingStar = null; 
+const STAR_COUNT = 30;   
+let targetScrollY = 0;   
+let currentScrollY = 0;  
+
+// さつまいも獲得時の黄色の光の粉用配列
+let potatoParticles = [];
+
+function initStars() {
+    bgStars = [];
+    for (let i = 0; i < STAR_COUNT; i++) {
+        bgStars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 2 + 0.5,    
+            speedFactor: Math.random() * 0.1 + 0.02 
+        });
+    }
+    shootingStar = null;
+    targetScrollY = 0;
+    currentScrollY = 0;
+    potatoParticles = []; 
+}
+
+// 【修正】手前のシルエット画像を縦横比維持・横幅いっぱいで最下部に描画する関数
+function drawCitySilhouette() {
+    if (!silhouetteImg.complete || silhouetteImg.naturalWidth === 0) return;
+
+    ctx.save();
+    // プレイヤーの移動に合わせて超低速（星の1/5の速度）で微かにスクロール（上空へ行く感覚の演出）
+    let cityYOffset = (currentScrollY * 0.02);
+
+    // 画像の元の縦横比から、Canvasの横幅（500px）に合わせた描画時の高さを計算
+    const aspectRatio = silhouetteImg.naturalHeight / silhouetteImg.naturalWidth;
+    const drawWidth = canvas.width; // 500
+    const drawHeight = drawWidth * aspectRatio;
+
+    // 画面の最下部を基準に、スクロールのオフセットを引いて配置
+    const drawX = 0;
+    const drawY = canvas.height - drawHeight + cityYOffset;
+
+    ctx.drawImage(silhouetteImg, drawX, drawY, drawWidth, drawHeight);
+    ctx.restore();
+}
+
+// さつまいもパーティクル発生（霧のように細かくきらめく）
+function createPotatoParticles(x, y) {
+    const count = 36; 
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 2.5 + 0.8; 
+        potatoParticles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 1.2, 
+            size: Math.random() * 1.3 + 0.5,   
+            life: 1.0,
+            decay: Math.random() * 0.02 + 0.015 
+        });
+    }
+}
 
 function updateButtons(){
     if(!isStarted){
@@ -221,13 +290,13 @@ function initGame(autoStart = false) {
     smokeActive = false;
     flashActive = false;
 
-    // 【修正】生成数を MAX_AHEAD_STAIRS（20段）に変更
+    initStars();
+
     for(let i=0; i < MAX_AHEAD_STAIRS; i++){
         const last = path[path.length-1];
         path.push(last + (Math.random()<0.5 ? -1 : 1));
         potatoPath.push(Math.random() < POTATO_CHANCE);
 
-        // 最初の数歩は出現させず、それ以降は確率で抽選
         if (i > 5 && !chappiePath.includes(true) && Math.random() < CHAPPIE_CHANCE) {
             chappiePath.push(true);
         } else {
@@ -304,12 +373,16 @@ function move(turn){
     previousStepX = path[0] - path[1];
     isJoiningTurn = false;
 
+    targetScrollY += 10; 
+
     path.shift();
     potatoPath.shift();
     chappiePath.shift(); 
 
     if (potatoPath[0]) {
         timeBonus += 3;
+        const targetX = 250 + (path[0] - path[1]) * 50;
+        createPotatoParticles(targetX, 450 - 15);
         potatoPath[0] = false;
     }
 
@@ -433,6 +506,60 @@ function draw(){
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // ====== 背景の滑らかなイージングスクロール処理 ======
+    let diff = targetScrollY - currentScrollY;
+    currentScrollY += diff * 0.05; 
+
+    // 【レイヤー1】一番奥に星空を描画
+    ctx.save();
+    bgStars.forEach(star => {
+        let renderY = (star.y + currentScrollY * star.speedFactor) % canvas.height;
+        if (renderY < 0) renderY += canvas.height; 
+
+        const alpha = (star.speedFactor * 0.6) + (Math.random() * 0.3);
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(star.x, renderY, star.size, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // 流れ星の抽選と描画
+    if (isStarted && !gameOver) {
+        if (!shootingStar && Math.random() < 0.001) {
+            shootingStar = {
+                x: Math.random() * canvas.width,
+                y: Math.random() * (canvas.height / 2), 
+                dx: -(Math.random() * 8 + 6),          
+                dy: Math.random() * 8 + 6,             
+                length: Math.random() * 40 + 30,       
+                life: 1.0                              
+            };
+        }
+
+        if (shootingStar) {
+            shootingStar.x += shootingStar.dx;
+            shootingStar.y += shootingStar.dy;
+            shootingStar.life -= 0.04; 
+
+            if (shootingStar.life <= 0 || shootingStar.x < 0 || shootingStar.y > canvas.height) {
+                shootingStar = null; 
+            } else {
+                ctx.strokeStyle = `rgba(255, 255, 255, ${shootingStar.life})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(shootingStar.x, shootingStar.y);
+                ctx.lineTo(shootingStar.x - shootingStar.dx * (shootingStar.length / 10), shootingStar.y - shootingStar.dy * (shootingStar.length / 10));
+                ctx.stroke();
+            }
+        }
+    }
+    ctx.restore();
+
+    // 【レイヤー2】星の上に「用意されたシルエット画像」を重ねて描画（星がビルを透過しなくなります）
+    drawCitySilhouette();
+    // ============================================================
+
+    // 【レイヤー3】最手前のゲーム要素（階段やキャラクターなど）
     const centerX = 250;
     const playerY = 450; 
 
@@ -477,6 +604,28 @@ function draw(){
     const pImg = facing === -1 ? deguLImg : deguRImg;
     const pSize = 48;
     ctx.drawImage(pImg, centerX - pSize / 2, playerY - pSize + 8, pSize, pSize);
+
+    // さつまいも獲得時の「黄色の光の粉」
+    if (potatoParticles.length > 0) {
+        ctx.save();
+        for (let i = potatoParticles.length - 1; i >= 0; i--) {
+            let p = potatoParticles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.08; 
+            p.life -= p.decay;
+
+            if (p.life <= 0) {
+                potatoParticles.splice(i, 1);
+            } else {
+                ctx.fillStyle = `rgba(255, 235, 70, ${p.life})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
 
     // ハートエフェクトの描画
     if (heartActive) {
@@ -562,6 +711,7 @@ function draw(){
     requestAnimationFrame(draw);
 }
 
+initStars();
 draw();
 
 </script>
