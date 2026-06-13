@@ -46,7 +46,7 @@ canvas{
 
 /* 名前入力画面のスタイル */
 #nameInputWrap {
-    bottom: 110px; /* 👈 画面の下側、操作ボタンの少し上の位置に固定 */
+    bottom: 90px; /* 👈 画面の下側、操作ボタンの少し上の位置に固定 */
     left: 50%; transform: translateX(-50%);
     background: rgba(16, 20, 38, 0.95); border: 2px solid cyan; border-radius: 14px;
     padding: 15px; width: 280px; text-align: center; color: white; display: none; z-index: 10;
@@ -83,8 +83,7 @@ button:active{ background:rgba(255,255,255,.3); }
     <button id="rankingBtn">RANKING</button>
 
     <div id="nameInputWrap">
-        <h3 style="margin:0;">NEW RECORD!</h3>
-        <p style="font-size:14px; margin:5px 0;">名前を入力（最大6文字）</p>
+        <p style="font-size:15px; margin:0 0 10px 0; font-weight:bold; color:cyan;">ランキングに名前を登録</p>
         <input type="text" id="playerNameInput" maxlength="6" placeholder="DEGU">
         <button id="saveNameBtn" style="width:100px; height:40px; font-size:16px; border-radius:8px;">OK</button>
     </div>
@@ -461,7 +460,7 @@ function draw(){
     if (!isStarted) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "cyan"; ctx.font = "40px sans-serif"; ctx.textAlign = "center"; ctx.fillText("Kuku's Stairs", canvas.width / 2, 220);
-        ctx.fillStyle = "white"; ctx.font = "20px sans-serif"; ctx.fillText("!Press START to Play", canvas.width / 2, 280); ctx.textAlign = "left"; 
+        ctx.fillStyle = "white"; ctx.font = "20px sans-serif"; ctx.fillText("Press START to Play", canvas.width / 2, 280); ctx.textAlign = "left"; 
     }
     if(gameOver){
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
