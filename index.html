@@ -130,7 +130,7 @@ const ctx = canvas.getContext("2d");
 
 // --- ゲームバランス調整用の定数 ---
 const POTATO_CHANCE = 0.05;      // さつまいものの出現確率
-const CHAPPIE_CHANCE = 0.02;     // チャッピーの出現確率
+const CHAPPIE_CHANCE = 0.01;     // チャッピーの出現確率
 const CHAPPIE_BONUS_SCORE = 30;  // チャッピーと合流した時の加算点
 // -------------------------------------------
 
@@ -175,13 +175,12 @@ let heartActive = false;
 let heartStartTime = 0;
 const HEART_DURATION = 600; 
 
-// 【新規】身代わりエフェクト（煙）用の管理変数
 let smokeActive = false;
 let smokeStartTime = 0;
 let smokeX = 0;
 let smokeY = 0;
-const SMOKE_DURATION = 500; // エフェクト時間（0.5秒）
-let flashActive = false;    // 画面フラッシュ用フラグ
+const SMOKE_DURATION = 500; 
+let flashActive = false;    
 
 function updateButtons(){
     if(!isStarted){
@@ -218,20 +217,19 @@ function initGame(autoStart = false) {
     isJoiningTurn = false; 
     heartActive = false;
 
-    // 身代わりエフェクトのリセット
     smokeActive = false;
     flashActive = false;
 
-    let chappiePlaced = false;
+    // 【修正】一回限りロック用の chappiePlaced 変数を撤去
 
     for(let i=0;i<100;i++){
         const last = path[path.length-1];
         path.push(last + (Math.random()<0.5 ? -1 : 1));
         potatoPath.push(Math.random() < POTATO_CHANCE);
 
-        if (!chappiePlaced && i > 5 && Math.random() < CHAPPIE_CHANCE) {
+        // 【修正】最初の100段を生成する際も、重複を避けつつ確率で複数出現できるように変更
+        if (i > 5 && !chappiePath.includes(true) && Math.random() < CHAPPIE_CHANCE) {
             chappiePath.push(true);
-            chappiePlaced = true;
         } else {
             chappiePath.push(false);
         }
@@ -270,7 +268,6 @@ function move(turn){
         return;
     }
 
-    // 方向入力前の「現在のククの向き」を保存しておく（ミス救済時の反転リ戻し用）
     const prevFacing = facing;
 
     let moveDir;
@@ -284,26 +281,20 @@ function move(turn){
     lastPlayerX = path[0] - path[1];
     const dx = path[1] - path[0];
 
-    // 【修正】ミス判定時の処理（チャッピーがいれば身代わりに）
     if(dx !== moveDir){
         if (hasChappy) {
-            // チャッピーが身代わりになる
             hasChappy = false;
             
-            // チャッピーがいた位置（1つ前の足場の座標）に煙エフェクトをセット
             smokeActive = true;
             smokeStartTime = Date.now();
-            smokeX = 250 + (path[0] - path[1]) * 50; // ククの後ろ側の座標
+            smokeX = 250 + (path[0] - path[1]) * 50; 
             smokeY = 450 + 40;
 
-            // 画面一瞬フラッシュをトリガー
             flashActive = true;
 
-            // ククの向きを入力前の状態に戻し、移動をキャンセル（踏みとどまる）
             facing = prevFacing;
             return; 
         } else {
-            // チャッピーがいなければ通常通りゲームオーバー
             finishGame("MISS"); 
             return;
         }
@@ -415,12 +406,10 @@ function drawHeart(x, y, size) {
     ctx.fill();
 }
 
-// 【新規】身代わり時の「ぽわん」とした白い煙の塊を描画する関数
 function drawSmokeCloud(x, y, progress) {
     ctx.save();
-    ctx.fillStyle = "rgba(240, 240, 240, " + (1 - progress) + ")"; // 徐々に薄くなる
+    ctx.fillStyle = "rgba(240, 240, 240, " + (1 - progress) + ")"; 
     
-    // 進行度に応じて広がる4つの円で煙を表現
     const radius = 10 + progress * 25;
     const offset = progress * 20;
 
@@ -508,7 +497,7 @@ function draw(){
         }
     }
 
-    // --- 【新規追加】身代わりの煙エフェクトの描画 ---
+    // 身代わりの煙エフェクトの描画
     if (smokeActive) {
         const elapsed = Date.now() - smokeStartTime;
         if (elapsed > SMOKE_DURATION) {
@@ -564,11 +553,10 @@ function draw(){
         ctx.textAlign = "left"; 
     }
 
-    // 【新規】身代わり時のホワイトアウト（フラッシュ）効果を一瞬だけ被せる
     if (flashActive) {
         ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        flashActive = false; // 1フレームだけ描画したら即解除
+        flashActive = false; 
     }
 
     requestAnimationFrame(draw);
