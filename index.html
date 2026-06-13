@@ -132,6 +132,7 @@ const ctx = canvas.getContext("2d");
 const POTATO_CHANCE = 0.05;      // さつまいものの出現確率
 const CHAPPIE_CHANCE = 0.01;     // チャッピーの出現確率
 const CHAPPIE_BONUS_SCORE = 30;  // チャッピーと合流した時の加算点
+const MAX_AHEAD_STAIRS = 20;     // 【新規】先読みする階段の長さ（100から20に変更）
 // -------------------------------------------
 
 // --- 画像の読み込み ---
@@ -220,14 +221,13 @@ function initGame(autoStart = false) {
     smokeActive = false;
     flashActive = false;
 
-    // 【修正】一回限りロック用の chappiePlaced 変数を撤去
-
-    for(let i=0;i<100;i++){
+    // 【修正】生成数を MAX_AHEAD_STAIRS（20段）に変更
+    for(let i=0; i < MAX_AHEAD_STAIRS; i++){
         const last = path[path.length-1];
         path.push(last + (Math.random()<0.5 ? -1 : 1));
         potatoPath.push(Math.random() < POTATO_CHANCE);
 
-        // 【修正】最初の100段を生成する際も、重複を避けつつ確率で複数出現できるように変更
+        // 最初の数歩は出現させず、それ以降は確率で抽選
         if (i > 5 && !chappiePath.includes(true) && Math.random() < CHAPPIE_CHANCE) {
             chappiePath.push(true);
         } else {
