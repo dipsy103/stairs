@@ -267,8 +267,9 @@ function finishGame(reason){
     gameOver = true;
     gameOverReason = reason; 
 
-    // 自己ベスト更新、または1点以上獲得時に名前入力ポップアップを表示
-    if(score > bestScore || score > 0){
+    // 【修正】自己ベストに関係なく、1点以上なら毎回名前入力を出す！
+    if(score > 0){
+        // ローカルの自己ベストの更新チェックだけは裏でやっておく
         if(score > bestScore) {
             bestScore = score;
             localStorage.setItem("bestScore", score);
