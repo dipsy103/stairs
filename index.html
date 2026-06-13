@@ -117,7 +117,7 @@ const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
 const POTATO_CHANCE = 0.05;      
-const CHAPPIE_CHANCE = 0.03;     
+const CHAPPIE_CHANCE = 0.01;     
 const CHAPPIE_BONUS_SCORE = 30;  
 const MAX_AHEAD_STAIRS = 20;     
 
@@ -138,6 +138,10 @@ let flashActive = false;
 let bgStars = []; let shootingStar = null; const STAR_COUNT = 30; let targetScrollY = 0, currentScrollY = 0;  
 let potatoParticles = [];
 let showingRanking = false;
+
+// 【新規追加】一度名前を入力したかを管理する永続フラグ
+let hasSavedNameBefore = false;
+let savedPlayerName = "DEGU";
 
 function initStars() {
     bgStars = [];
@@ -223,9 +227,14 @@ function startGame() {
     isStarted = true; startTime = Date.now(); showingRanking = false; updateButtons();
 }
 
-// 【新規】スコア送信処理
+// スコア送信処理
 async function saveScoreToFirebase(name, finalScore) {
     if(!name) name = "DEGU";
+    
+    // 【修正】次回以降の自動送信用に名前を永続記憶
+    savedPlayerName = name;
+    hasSavedNameBefore = true;
+
     try {
         await db.collection("rankings").add({
             name: name,
@@ -239,7 +248,7 @@ async function saveScoreToFirebase(name, finalScore) {
     }
 }
 
-// 【新規】ランキング取得処理（トップ20）
+// ランキング取得処理（トップ20）
 async function showRankingBoard() {
     showingRanking = true;
     updateButtons();
@@ -267,14 +276,23 @@ function finishGame(reason){
     gameOver = true;
     gameOverReason = reason; 
 
-    // 【修正】自己ベストに関係なく、1点以上なら毎回名前入力を出す！
+    if(score > bestScore) {
+        bestScore = score;
+        localStorage.setItem("bestScore", score);
+    }
+
+    // 【修正】点数を確認させるため、0.6秒のウェイトを置いてからポップアップ分岐
     if(score > 0){
-        // ローカルの自己ベストの更新チェックだけは裏でやっておく
-        if(score > bestScore) {
-            bestScore = score;
-            localStorage.setItem("bestScore", score);
-        }
-        document.getElementById("nameInputWrap").style.display = "block";
+        setTimeout(() => {
+            if (hasSavedNameBefore) {
+                // すでに名前入力済みの場合は、そのまま記憶した名前で自動送信してランキングボードへ
+                saveScoreToFirebase(savedPlayerName, score);
+            } else {
+                // 初回のみ名前入力ポップアップをアクティブにする
+                document.getElementById("nameInputWrap").style.display = "block";
+                updateButtons();
+            }
+        }, 600);
     }
     updateButtons();
 }
