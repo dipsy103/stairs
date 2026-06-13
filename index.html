@@ -129,8 +129,8 @@ const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
 // --- ゲームバランス調整用の定数 ---
-const POTATO_CHANCE = 0.05;      // さつまいもの出現確率
-const CHAPPIE_CHANCE = 0.01;     // チャッピーの出現確率
+const POTATO_CHANCE = 0.05;      // さつまいものの出現確率
+const CHAPPIE_CHANCE = 0.02;     // チャッピーの出現確率
 const CHAPPIE_BONUS_SCORE = 30;  // チャッピーと合流した時の加算点
 // -------------------------------------------
 
@@ -175,6 +175,14 @@ let heartActive = false;
 let heartStartTime = 0;
 const HEART_DURATION = 600; 
 
+// 【新規】身代わりエフェクト（煙）用の管理変数
+let smokeActive = false;
+let smokeStartTime = 0;
+let smokeX = 0;
+let smokeY = 0;
+const SMOKE_DURATION = 500; // エフェクト時間（0.5秒）
+let flashActive = false;    // 画面フラッシュ用フラグ
+
 function updateButtons(){
     if(!isStarted){
         document.getElementById("startControls").style.display = "flex";
@@ -192,7 +200,6 @@ function updateButtons(){
     }
 }
 
-// 引数 autoStart が true の場合は、初期化と同時にタイマーを動かしてゲームを開始する
 function initGame(autoStart = false) {
     bestScore = Number(localStorage.getItem("bestScore") || 0);
     score = 0;
@@ -210,6 +217,10 @@ function initGame(autoStart = false) {
     previousStepX = 0;
     isJoiningTurn = false; 
     heartActive = false;
+
+    // 身代わりエフェクトのリセット
+    smokeActive = false;
+    flashActive = false;
 
     let chappiePlaced = false;
 
@@ -229,11 +240,9 @@ function initGame(autoStart = false) {
     facing = path[1] - path[0];
 
     if (autoStart) {
-        // 【修正】RESTART時は即座にゲームを開始状態にする
         isStarted = true;
         startTime = Date.now();
     } else {
-        // 初回表示時は待機状態
         isStarted = false;
     }
 
@@ -261,8 +270,10 @@ function move(turn){
         return;
     }
 
-    let moveDir;
+    // 方向入力前の「現在のククの向き」を保存しておく（ミス救済時の反転リ戻し用）
+    const prevFacing = facing;
 
+    let moveDir;
     if(turn){
         facing *= -1;
         moveDir = facing;
@@ -273,9 +284,29 @@ function move(turn){
     lastPlayerX = path[0] - path[1];
     const dx = path[1] - path[0];
 
+    // 【修正】ミス判定時の処理（チャッピーがいれば身代わりに）
     if(dx !== moveDir){
-        finishGame("MISS"); 
-        return;
+        if (hasChappy) {
+            // チャッピーが身代わりになる
+            hasChappy = false;
+            
+            // チャッピーがいた位置（1つ前の足場の座標）に煙エフェクトをセット
+            smokeActive = true;
+            smokeStartTime = Date.now();
+            smokeX = 250 + (path[0] - path[1]) * 50; // ククの後ろ側の座標
+            smokeY = 450 + 40;
+
+            // 画面一瞬フラッシュをトリガー
+            flashActive = true;
+
+            // ククの向きを入力前の状態に戻し、移動をキャンセル（踏みとどまる）
+            facing = prevFacing;
+            return; 
+        } else {
+            // チャッピーがいなければ通常通りゲームオーバー
+            finishGame("MISS"); 
+            return;
+        }
     }
 
     score++;
@@ -312,7 +343,6 @@ function move(turn){
     }
 }
 
-// 初回起動は待機モードで初期化
 initGame(false);
 
 document.addEventListener("keydown",e=>{
@@ -322,7 +352,6 @@ document.addEventListener("keydown",e=>{
         return;
     }
 
-    // ゲームオーバー時に何かキーを押したら即座に次のゲームを開始
     if(gameOver && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) {
         e.preventDefault();
         initGame(true);
@@ -353,7 +382,7 @@ function attachButtonEvent(btn, callback) {
 attachButtonEvent(startBtn, startGame);
 attachButtonEvent(goBtn, () => move(false));
 attachButtonEvent(turnBtn, () => move(true));
-attachButtonEvent(restartBtn, () => initGame(true)); // 【修正】リスタート時は引数を true にして即座に開始
+attachButtonEvent(restartBtn, () => initGame(true)); 
 
 function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = true) {
     if (!image.complete || image.naturalWidth === 0) return;
@@ -384,6 +413,24 @@ function drawHeart(x, y, size) {
     ctx.bezierCurveTo(x + size, y - size / 2, x, y - size / 2, x, y + size / 4);
     ctx.closePath();
     ctx.fill();
+}
+
+// 【新規】身代わり時の「ぽわん」とした白い煙の塊を描画する関数
+function drawSmokeCloud(x, y, progress) {
+    ctx.save();
+    ctx.fillStyle = "rgba(240, 240, 240, " + (1 - progress) + ")"; // 徐々に薄くなる
+    
+    // 進行度に応じて広がる4つの円で煙を表現
+    const radius = 10 + progress * 25;
+    const offset = progress * 20;
+
+    ctx.beginPath();
+    ctx.arc(x - offset, y, radius, 0, Math.PI * 2);
+    ctx.arc(x + offset, y, radius, 0, Math.PI * 2);
+    ctx.arc(x, y - offset, radius, 0, Math.PI * 2);
+    ctx.arc(x, y + offset, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
 }
 
 function draw(){
@@ -461,6 +508,17 @@ function draw(){
         }
     }
 
+    // --- 【新規追加】身代わりの煙エフェクトの描画 ---
+    if (smokeActive) {
+        const elapsed = Date.now() - smokeStartTime;
+        if (elapsed > SMOKE_DURATION) {
+            smokeActive = false;
+        } else {
+            const progress = elapsed / SMOKE_DURATION;
+            drawSmokeCloud(smokeX, smokeY - 15, progress);
+        }
+    }
+
     // スコアなどの情報表示
     ctx.fillStyle = "white";
     ctx.font = "24px sans-serif";
@@ -468,7 +526,7 @@ function draw(){
     ctx.fillText("Time: " + timeLeft.toFixed(1), 20, 75);
     ctx.fillText("Best: " + bestScore, 20, 110);
 
-    // 【修正】タイトルを Kuku's Stairs に変更
+    // タイトル画面
     if (!isStarted) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -484,6 +542,7 @@ function draw(){
         ctx.textAlign = "left"; 
     }
 
+    // ゲームオーバー画面
     if(gameOver){
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -503,6 +562,13 @@ function draw(){
         ctx.fillText("Score : " + score, canvas.width / 2, 280);
         ctx.fillText("Best : " + bestScore, canvas.width / 2, 320);
         ctx.textAlign = "left"; 
+    }
+
+    // 【新規】身代わり時のホワイトアウト（フラッシュ）効果を一瞬だけ被せる
+    if (flashActive) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        flashActive = false; // 1フレームだけ描画したら即解除
     }
 
     requestAnimationFrame(draw);
