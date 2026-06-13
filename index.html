@@ -155,6 +155,11 @@ let timeLeft;
 let startTime;
 let timeBonus = 0;
 
+// 【新規追加】ハートエフェクト管理用の変数
+let heartActive = false;
+let heartStartTime = 0;
+const HEART_DURATION = 600; // ハートが表示される時間（ミリ秒、600 = 0.6秒）
+
 function updateButtons(){
 
     if(gameOver){
@@ -203,6 +208,9 @@ function reset(){
     
     previousStepX = 0;
     isJoiningTurn = false; 
+
+    // ハートをリセット
+    heartActive = false;
 
     let chappiePlaced = false;
 
@@ -293,6 +301,10 @@ function move(turn){
         hasChappy = true;    
         isJoiningTurn = true;  
         chappiePath[0] = false; 
+
+        // 【修正】チャッピーと合流した瞬間にハートエフェクトを開始
+        heartActive = true;
+        heartStartTime = Date.now();
     }
 
     const last =
@@ -359,16 +371,25 @@ function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = tr
     ctx.drawImage(image, x, y, drawWidth, drawHeight);
 }
 
-// 【新規追加】スコアに基づいて現在の階段の色（HSL形式）を返す関数
 function getStairColor(currentScore) {
-    // 100点ごとに色相(Hue)を60度ずつズラしていく
-    // 0点台=シアン(180), 100点台=紫(240), 200点台=ピンク(300), 300点台=赤(0)...
     const baseHue = 180; 
     const step = Math.floor(currentScore / 100);
     const hue = (baseHue + step * 60) % 360;
-    
-    // HSL: 鮮やかな色にするため、彩度100%、輝度50%に固定
     return `hsl(${hue}, 100%, 50%)`;
+}
+
+// 【新規追加】プログラムでハートを描画する関数
+function drawHeart(x, y, size) {
+    ctx.beginPath();
+    ctx.moveTo(x, y + size / 4);
+    // 左半分
+    ctx.bezierCurveTo(x, y - size / 2, x - size, y - size / 2, x - size, y + size / 4);
+    ctx.bezierCurveTo(x - size, y + size * 0.75, x, y + size * 1.1, x, y + size * 1.3);
+    // 右半分
+    ctx.bezierCurveTo(x, y + size * 1.1, x + size, y + size * 0.75, x + size, y + size / 4);
+    ctx.bezierCurveTo(x + size, y - size / 2, x, y - size / 2, x, y + size / 4);
+    ctx.closePath();
+    ctx.fill();
 }
 
 function draw(){
@@ -402,14 +423,12 @@ function draw(){
     const centerX = 250;
     const playerY = 450; 
 
-    // 【修正】現在のスコアから色を決定する
     const currentStairColor = getStairColor(score);
 
     const prevX = centerX + previousStepX * 50;
     const prevY = playerY + 40; 
 
     if (score > 0) {
-        // 【修正】過去の段にも同じ色を適用
         ctx.strokeStyle = currentStairColor;
         ctx.strokeRect(
             prevX - 25,
@@ -435,7 +454,6 @@ function draw(){
             -
             i * 40;
 
-        // 【修正】動的に変わる色を設定
         ctx.strokeStyle = currentStairColor;
 
         ctx.strokeRect(
@@ -485,6 +503,42 @@ function draw(){
         pSize,
         pSize
     );
+
+    // --- 【新規追加】ハートエフェクトの描画ロジック ---
+    if (heartActive) {
+        const elapsed = Date.now() - heartStartTime;
+        
+        if (elapsed > HEART_DURATION) {
+            heartActive = false; // 指定時間を過ぎたらエフェクト終了
+        } else {
+            // アニメーションの進行度（0.0 〜 1.0）
+            const progress = elapsed / HEART_DURATION;
+            
+            // 進行度に応じて、徐々に上に昇らせる（-50px分）
+            const heartY = (playerY - 45) - (progress * 50);
+            
+            // 進行度に応じて、フワッと現れてから完全に消えるように不透明度(Alpha)を計算
+            // 前半でフェードイン、後半でフェードアウト
+            let alpha = 1;
+            if (progress < 0.2) {
+                alpha = progress / 0.2; // 最初の20%の期間でフェードイン
+            } else {
+                alpha = 1 - (progress - 0.2) / 0.8; // 残りの80%の期間でフェードアウト
+            }
+            
+            // 進行度に応じてサイズも少しだけ大きくする（ポップアップ感）
+            const currentSize = 10 + progress * 8;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = "#ff4a8d"; // かわいいピンクラベンダー色
+            
+            // ククとチャッピーの頭上（centerX）に描画
+            drawHeart(centerX, heartY, currentSize);
+            ctx.restore();
+        }
+    }
+    // -------------------------------------------------
 
     // スコアなどの情報表示
     ctx.fillStyle = "white";
