@@ -139,9 +139,10 @@ let bgStars = []; let shootingStar = null; const STAR_COUNT = 30; let targetScro
 let potatoParticles = [];
 let showingRanking = false;
 
-// 【新規追加】一度名前を入力したかを管理する永続フラグ
+// 一度名前を入力したかを管理する永続フラグ
 let hasSavedNameBefore = false;
 let savedPlayerName = "DEGU";
+let canRestart = false; // 👈 【新規追加】リスタートを受け付けるかどうかのフラグ
 
 function initStars() {
     bgStars = [];
@@ -231,7 +232,6 @@ function startGame() {
 async function saveScoreToFirebase(name, finalScore) {
     if(!name) name = "DEGU";
     
-    // 【修正】次回以降の自動送信用に名前を永続記憶
     savedPlayerName = name;
     hasSavedNameBefore = true;
 
@@ -241,7 +241,6 @@ async function saveScoreToFirebase(name, finalScore) {
             score: finalScore,
             date: firebase.firestore.FieldValue.serverTimestamp()
         });
-        // 送信が完了したらランキングを表示
         showRankingBoard();
     } catch (e) {
         console.error("スコア保存失敗: ", e);
@@ -275,20 +274,23 @@ async function showRankingBoard() {
 function finishGame(reason){
     gameOver = true;
     gameOverReason = reason; 
+    canRestart = false; // 👈 【新規追加】ゲームオーバー直後は強制リスタートロック
 
     if(score > bestScore) {
         bestScore = score;
         localStorage.setItem("bestScore", score);
     }
 
-    // 【修正】点数を確認させるため、0.6秒のウェイトを置いてからポップアップ分岐
+    // 1秒後にリスタートの先行入力を解禁する
+    setTimeout(() => {
+        canRestart = true;
+    }, 1000);
+
     if(score > 0){
         setTimeout(() => {
             if (hasSavedNameBefore) {
-                // すでに名前入力済みの場合は、そのまま記憶した名前で自動送信してランキングボードへ
                 saveScoreToFirebase(savedPlayerName, score);
             } else {
-                // 初回のみ名前入力ポップアップをアクティブにする
                 document.getElementById("nameInputWrap").style.display = "block";
                 updateButtons();
             }
@@ -352,7 +354,15 @@ initGame(false);
 document.addEventListener("keydown",e=>{
     if (document.getElementById("nameInputWrap").style.display === "block") return;
     if(!isStarted && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { e.preventDefault(); startGame(); return; }
-    if(gameOver && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { e.preventDefault(); initGame(true); return; }
+    
+    // 👈 【修正】gameOver時に、1秒間のインターバル(canRestart)が明けるまでキーによる次のゲーム始動をブロック
+    if(gameOver && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { 
+        e.preventDefault(); 
+        if (!canRestart) return; 
+        initGame(true); 
+        return; 
+    }
+    
     if(e.code==="Space"){ e.preventDefault(); move(false); }
     else if(e.code==="ControlLeft" || e.code==="ControlRight"){ move(true); }
 });
@@ -361,7 +371,11 @@ function attachButtonEvent(btn, callback) { btn.addEventListener("pointerdown", 
 attachButtonEvent(document.getElementById("startBtn"), startGame);
 attachButtonEvent(document.getElementById("goBtn"), () => move(false));
 attachButtonEvent(document.getElementById("turnBtn"), () => move(true));
-attachButtonEvent(document.getElementById("restartBtn"), () => initGame(true)); 
+attachButtonEvent(document.getElementById("restartBtn"), () => {
+    // 👈 念のため画面のUIボタン（マウス/タップ操作）経由でも連打バグが起きないようにガードを適用
+    if (gameOver && !canRestart) return;
+    initGame(true);
+}); 
 
 function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = true) {
     if (!image.complete || image.naturalWidth === 0) return;
