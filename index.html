@@ -42,11 +42,22 @@ canvas{
     right:0;
     bottom:16px;
 
-    display:flex;
+    display:none; /* 初期は非表示 */
     justify-content:space-between;
 
     padding:0 16px;
     box-sizing:border-box;
+}
+
+/* 【新規】ゲーム開始前のスタート用コントロール */
+#startControls {
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:16px;
+
+    display:flex;
+    justify-content:center;
 }
 
 #gameOverControls{
@@ -98,6 +109,10 @@ button:active{
             width="500"
             height="600"></canvas>
 
+    <div id="startControls">
+        <button id="startBtn">START</button>
+    </div>
+
     <div id="controls">
         <button id="turnBtn">TURN</button>
         <button id="goBtn">GO</button>
@@ -141,6 +156,8 @@ let facing;
 let score;
 let bestScore;
 let gameOver;
+let isStarted = false; // 【新規】ゲームが始まっているかどうかのフラグ
+let gameOverReason = ""; // 【新規】ゲームオーバーの理由（"TIME_UP" または "MISS"）
 let path;
 let potatoPath;
 
@@ -160,67 +177,48 @@ let heartStartTime = 0;
 const HEART_DURATION = 600; 
 
 function updateButtons(){
-
-    if(gameOver){
-
-        document
-            .getElementById("controls")
-            .style.display = "none";
-
-        document
-            .getElementById("gameOverControls")
-            .style.display = "flex";
-
+    if(!isStarted){
+        // 開始前はSTARTボタンのみ表示
+        document.getElementById("startControls").style.display = "flex";
+        document.getElementById("controls").style.display = "none";
+        document.getElementById("gameOverControls").style.display = "none";
+    }
+    else if(gameOver){
+        document.getElementById("startControls").style.display = "none";
+        document.getElementById("controls").style.display = "none";
+        document.getElementById("gameOverControls").style.display = "flex";
     }else{
-
-        document
-            .getElementById("controls")
-            .style.display = "flex";
-
-        document
-            .getElementById("gameOverControls")
-            .style.display = "none";
+        document.getElementById("startControls").style.display = "none";
+        document.getElementById("controls").style.display = "flex";
+        document.getElementById("gameOverControls").style.display = "none";
     }
 }
 
-function reset(){
-
-    bestScore =
-        Number(
-            localStorage.getItem("bestScore") || 0
-        );
-
-    facing = 1;
+// 【新規】ゲーム画面を初期化して待機状態にする関数
+function initGame() {
+    bestScore = Number(localStorage.getItem("bestScore") || 0);
     score = 0;
     gameOver = false;
+    isStarted = false;
+    gameOverReason = "";
 
     timeLeft = 30;
     timeBonus = 0;
-    startTime = Date.now();
 
     path = [0];
     potatoPath = [false];
-    
     chappiePath = [false]; 
     hasChappy = false;
     lastPlayerX = 0;
-    
     previousStepX = 0;
     isJoiningTurn = false; 
-
     heartActive = false;
 
     let chappiePlaced = false;
 
     for(let i=0;i<100;i++){
-
         const last = path[path.length-1];
-
-        path.push(
-            last +
-            (Math.random()<0.5 ? -1 : 1)
-        );
-
+        path.push(last + (Math.random()<0.5 ? -1 : 1));
         potatoPath.push(Math.random() < POTATO_CHANCE);
 
         if (!chappiePlaced && i > 5 && Math.random() < CHAPPIE_CHANCE) {
@@ -231,58 +229,54 @@ function reset(){
         }
     }
 
+    // 【修正】最初の階段（path[1] - path[0]）の方向を向く（-1なら左、1なら右）
+    facing = path[1] - path[0];
+
     updateButtons();
 }
 
-function finishGame(){
+// 【新規】STARTボタンを押した時に実際に動かす関数
+function startGame() {
+    isStarted = true;
+    startTime = Date.now();
+    updateButtons();
+}
 
+function finishGame(reason){
     if(score > bestScore){
-
         bestScore = score;
-
-        localStorage.setItem(
-            "bestScore",
-            score
-        );
+        localStorage.setItem("bestScore", score);
     }
-
     gameOver = true;
-
+    gameOverReason = reason; // 【修正】理由を保存
     updateButtons();
 }
 
 function move(turn){
-
-    if(gameOver){
+    // ゲームが始まっていない、または終了しているときは動かさない
+    if(!isStarted || gameOver){
         return;
     }
 
     let moveDir;
 
     if(turn){
-
         facing *= -1;
         moveDir = facing;
-
     }else{
-
         moveDir = facing;
     }
 
     lastPlayerX = path[0] - path[1];
-
     const dx = path[1] - path[0];
 
     if(dx !== moveDir){
-
-        finishGame();
+        finishGame("MISS"); // 【修正】踏み外しのミス
         return;
     }
 
     score++;
-
     previousStepX = path[0] - path[1];
-
     isJoiningTurn = false;
 
     path.shift();
@@ -304,14 +298,8 @@ function move(turn){
         heartStartTime = Date.now();
     }
 
-    const last =
-        path[path.length-1];
-
-    path.push(
-        last +
-        (Math.random()<0.5 ? -1 : 1)
-    );
-
+    const last = path[path.length-1];
+    path.push(last + (Math.random()<0.5 ? -1 : 1));
     potatoPath.push(Math.random() < POTATO_CHANCE);
 
     if (!hasChappy && !chappiePath.includes(true) && Math.random() < CHAPPIE_CHANCE) {
@@ -321,25 +309,27 @@ function move(turn){
     }
 }
 
-reset();
+// 初期化
+initGame();
 
 document.addEventListener("keydown",e=>{
+    // スペースキーまたはコントロールキーでゲーム開始できるように
+    if(!isStarted && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) {
+        e.preventDefault();
+        startGame();
+        return;
+    }
 
     if(e.code==="Space"){
-
         e.preventDefault();
-
         move(false);
     }
-    else if(
-        e.code==="ControlLeft" ||
-        e.code==="ControlRight"
-    ){
-
+    else if(e.code==="ControlLeft" || e.code==="ControlRight"){
         move(true);
     }
 });
 
+const startBtn = document.getElementById("startBtn");
 const goBtn = document.getElementById("goBtn");
 const turnBtn = document.getElementById("turnBtn");
 const restartBtn = document.getElementById("restartBtn");
@@ -351,9 +341,10 @@ function attachButtonEvent(btn, callback) {
     });
 }
 
+attachButtonEvent(startBtn, startGame); // 【新規】STARTボタンのイベント
 attachButtonEvent(goBtn, () => move(false));
 attachButtonEvent(turnBtn, () => move(true));
-attachButtonEvent(restartBtn, reset);
+attachButtonEvent(restartBtn, initGame); // 【修正】リスタート時はinitGameを呼ぶ
 
 function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = true) {
     if (!image.complete || image.naturalWidth === 0) return;
@@ -368,14 +359,10 @@ function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = tr
     ctx.drawImage(image, x, y, drawWidth, drawHeight);
 }
 
-// 【修正】色のサイクルを逆回転に変更
 function getStairColor(currentScore) {
-    const baseHue = 180; // 初期値はシアン（水色）
+    const baseHue = 180; 
     const step = Math.floor(currentScore / 100);
-    
-    // マイナス（逆回転）にして、360を足してから剰余演算をすることで、マイナスの値になるのを防ぐ
     const hue = (baseHue - step * 60 + 3600) % 360;
-    
     return `hsl(${hue}, 100%, 50%)`;
 }
 
@@ -392,96 +379,48 @@ function drawHeart(x, y, size) {
 
 function draw(){
 
-    if(!gameOver){
-
-        timeLeft =
-            Math.max(
-                0,
-                30 + timeBonus -
-                (
-                    Date.now()
-                    -
-                    startTime
-                ) / 1000
-            );
-
+    // 【修正】ゲーム開始後のみタイマーカウントダウンを行う
+    if(isStarted && !gameOver){
+        timeLeft = Math.max(0, 30 + timeBonus - (Date.now() - startTime) / 1000);
         if(timeLeft <= 0){
-
-            finishGame();
+            finishGame("TIME_UP"); // 【修正】時間切れ
         }
     }
 
-    ctx.clearRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const centerX = 250;
     const playerY = 450; 
 
     const currentStairColor = getStairColor(score);
-
     const prevX = centerX + previousStepX * 50;
     const prevY = playerY + 40; 
 
     if (score > 0) {
         ctx.strokeStyle = currentStairColor;
-        ctx.strokeRect(
-            prevX - 25,
-            prevY - 8,
-            50,
-            16
-        );
+        ctx.strokeRect(prevX - 25, prevY - 8, 50, 16);
     }
 
-    // 階段の描画（通常の0〜11段）
+    // 階段の描画
     for(let i=0;i<12;i++){
-
-        const x =
-            centerX +
-            (
-                path[i]
-                -
-                path[0]
-            ) * 50;
-
-        const y =
-            playerY
-            -
-            i * 40;
+        const x = centerX + (path[i] - path[0]) * 50;
+        const y = playerY - i * 40;
 
         ctx.strokeStyle = currentStairColor;
+        ctx.strokeRect(x - 25, y - 8, 50, 16);
 
-        ctx.strokeRect(
-            x - 25,
-            y - 8,
-            50,
-            16
-        );
-
-        // さつまい目の描画
         if (potatoPath[i]) {
             const itemSize = 24;
-            ctx.drawImage(
-                potatoImg,
-                x - itemSize / 2,
-                y - itemSize - 4,
-                itemSize,
-                itemSize
-            );
+            ctx.drawImage(potatoImg, x - itemSize / 2, y - itemSize - 4, itemSize, itemSize);
         }
 
-        // 階段の上で待っているチャッピー
         if (chappiePath[i]) {
             drawImageWithScale(chappieRImg, x, y + 8, 36, true);
         }
     }
 
-    // チャッピーとククの描画処理（重ねる対応）
+    // チャッピーとククの描画処理
     const cImg = facing === -1 ? chappieLImg : chappieRImg;
-
     if (hasChappy) {
         if (isJoiningTurn) {
             drawImageWithScale(cImg, centerX, playerY + 8, 36, true);
@@ -493,38 +432,22 @@ function draw(){
     // プレイヤー（クク）の描画処理
     const pImg = facing === -1 ? deguLImg : deguRImg;
     const pSize = 48;
+    ctx.drawImage(pImg, centerX - pSize / 2, playerY - pSize + 8, pSize, pSize);
 
-    ctx.drawImage(
-        pImg,
-        centerX - pSize / 2,
-        playerY - pSize + 8,
-        pSize,
-        pSize
-    );
-
-    // ハートエフェクトの描画ロジック
+    // ハートエフェクトの描画
     if (heartActive) {
         const elapsed = Date.now() - heartStartTime;
-        
         if (elapsed > HEART_DURATION) {
             heartActive = false; 
         } else {
             const progress = elapsed / HEART_DURATION;
             const heartY = (playerY - 45) - (progress * 50);
-            
-            let alpha = 1;
-            if (progress < 0.2) {
-                alpha = progress / 0.2; 
-            } else {
-                alpha = 1 - (progress - 0.2) / 0.8; 
-            }
-            
+            let alpha = progress < 0.2 ? progress / 0.2 : 1 - (progress - 0.2) / 0.8;
             const currentSize = 10 + progress * 8;
 
             ctx.save();
             ctx.globalAlpha = alpha;
             ctx.fillStyle = "#ff4a8d"; 
-            
             drawHeart(centerX, heartY, currentSize);
             ctx.restore();
         }
@@ -533,54 +456,46 @@ function draw(){
     // スコアなどの情報表示
     ctx.fillStyle = "white";
     ctx.font = "24px sans-serif";
+    ctx.fillText("Score: " + score, 20, 40);
+    ctx.fillText("Time: " + timeLeft.toFixed(1), 20, 75);
+    ctx.fillText("Best: " + bestScore, 20, 110);
 
-    ctx.fillText(
-        "Score: " + score,
-        20,
-        40
-    );
+    // 【修正】開始前のタイトルテキスト表示
+    if (!isStarted) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillText(
-        "Time: " +
-        timeLeft.toFixed(1),
-        20,
-        75
-    );
+        ctx.fillStyle = "cyan";
+        ctx.font = "40px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Infinite Stairs", canvas.width / 2, 220);
+        
+        ctx.fillStyle = "white";
+        ctx.font = "20px sans-serif";
+        ctx.fillText("Press START to Play", canvas.width / 2, 280);
+        ctx.textAlign = "left"; // 元に戻す
+    }
 
-    ctx.fillText(
-        "Best: " +
-        bestScore,
-        20,
-        110
-    );
-
+    // 【修正】ゲームオーバー時のテキスト出し分け
     if(gameOver){
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.fillStyle = "red";
+        ctx.font = "40px sans-serif";
+        ctx.textAlign = "center";
 
-        ctx.font =
-            "40px sans-serif";
+        if (gameOverReason === "TIME_UP") {
+            ctx.fillText("TIME UP", canvas.width / 2, 220);
+        } else {
+            ctx.fillText("GAME OVER", canvas.width / 2, 220);
+        }
 
-        ctx.fillText(
-            "TIME UP",
-            145,
-            240
-        );
-
-        ctx.font =
-            "28px sans-serif";
-
-        ctx.fillText(
-            "Score : " + score,
-            160,
-            290
-        );
-
-        ctx.fillText(
-            "Best : " + bestScore,
-            160,
-            330
-        );
+        ctx.fillStyle = "white";
+        ctx.font = "28px sans-serif";
+        ctx.fillText("Score : " + score, canvas.width / 2, 280);
+        ctx.fillText("Best : " + bestScore, canvas.width / 2, 320);
+        ctx.textAlign = "left"; // 元に戻す
     }
 
     requestAnimationFrame(draw);
