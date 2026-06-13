@@ -79,7 +79,6 @@ button{
 
     touch-action:manipulation;
 
-    /* 【修正】ボタン内のテキスト選択・長押しメニューを完全に禁止 */
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
@@ -332,17 +331,13 @@ document.addEventListener("keydown",e=>{
     }
 });
 
-// 【修正】スマホでの誤動作・文字選択を防ぎ、超高速で反応させるために pointerdown/touchstart に変更
-// さらにダブルタップによるズームなどのブラウザ標準動作を防ぐために e.preventDefault() を入れます
-
 const goBtn = document.getElementById("goBtn");
 const turnBtn = document.getElementById("turnBtn");
 const restartBtn = document.getElementById("restartBtn");
 
 function attachButtonEvent(btn, callback) {
-    // タッチ環境なら touchstart、PCなら mousedown の両方に対応する pointerdown を使用
     btn.addEventListener("pointerdown", (e) => {
-        e.preventDefault(); // 文字選択やズームなどのブラウザ標準動作をブロック
+        e.preventDefault(); 
         callback();
     });
 }
@@ -362,6 +357,18 @@ function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = tr
     const y = alignBottom ? (targetY - drawHeight) : (targetY - drawHeight / 2);
     
     ctx.drawImage(image, x, y, drawWidth, drawHeight);
+}
+
+// 【新規追加】スコアに基づいて現在の階段の色（HSL形式）を返す関数
+function getStairColor(currentScore) {
+    // 100点ごとに色相(Hue)を60度ずつズラしていく
+    // 0点台=シアン(180), 100点台=紫(240), 200点台=ピンク(300), 300点台=赤(0)...
+    const baseHue = 180; 
+    const step = Math.floor(currentScore / 100);
+    const hue = (baseHue + step * 60) % 360;
+    
+    // HSL: 鮮やかな色にするため、彩度100%、輝度50%に固定
+    return `hsl(${hue}, 100%, 50%)`;
 }
 
 function draw(){
@@ -395,11 +402,15 @@ function draw(){
     const centerX = 250;
     const playerY = 450; 
 
+    // 【修正】現在のスコアから色を決定する
+    const currentStairColor = getStairColor(score);
+
     const prevX = centerX + previousStepX * 50;
     const prevY = playerY + 40; 
 
     if (score > 0) {
-        ctx.strokeStyle = "cyan";
+        // 【修正】過去の段にも同じ色を適用
+        ctx.strokeStyle = currentStairColor;
         ctx.strokeRect(
             prevX - 25,
             prevY - 8,
@@ -424,7 +435,8 @@ function draw(){
             -
             i * 40;
 
-        ctx.strokeStyle = "cyan";
+        // 【修正】動的に変わる色を設定
+        ctx.strokeStyle = currentStairColor;
 
         ctx.strokeRect(
             x - 25,
