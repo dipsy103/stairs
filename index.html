@@ -515,15 +515,15 @@ function draw(){
         if (chappiePath[i]) drawImageWithScale(chappieRImg, x, y + 8, 36, true);
     }
 
-    // 👇 【修正箇所】キャラクターのメイン描画ロジック（主役交代システム）
+    // 💡 【修正箇所】キャラクターのメイン描画ロジック
     if (hasChappy) {
         // ① チャッピーが操作キャラとしてメイン座標（centerX）に君臨
         drawImageWithScale(facing === -1 ? chappieLImg : chappieRImg, centerX, playerY, 36, true);
         
-        // ② ククは一歩後ろ（1マス手前の階段下）をトコトコついていく
-        // 拾った直後（isJoiningTurn）なら元の位置、動いた後なら前回踏み外さなかったマスのX座標
-        const kukuX = centerX + previousStepX * 50;
-        const kukuY = isJoiningTurn ? playerY : playerY + 40; // 動いた後は一段下に下がる
+        // ② ククは出会った瞬間（isJoiningTurn）ならチャッピーと完全同位置（centerX, playerY）に重なる
+        // 次のステップに動いたあとは、1マス後ろ（previousStepX, playerY + 40）をトコトコついていく
+        const kukuX = isJoiningTurn ? centerX : (centerX + previousStepX * 50);
+        const kukuY = isJoiningTurn ? playerY : (playerY + 40);
         
         ctx.drawImage(facing === -1 ? deguLImg : deguRImg, kukuX - 24, kukuY - 40, 48, 48);
     } else {
