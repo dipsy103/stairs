@@ -11,7 +11,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
 <style>
-/* 👇 画面全体を固定し、連打による誤スクロールやバウンスを完全に防止 */
 html,body{
     margin:0;
     padding:0;
@@ -80,7 +79,6 @@ button{
     width:120px; height:70px; border-radius:14px;
     border:2px solid rgba(255,255,255,.5); background:rgba(255,255,255,.15);
     color:white; font-size:24px; font-weight:bold; backdrop-filter:blur(4px);
-    /* 👇 連打時の拡大動作やスクロールトリガーを防止 */
     touch-action:none;
     -webkit-user-select: none; user-select: none;
 }
@@ -388,7 +386,8 @@ function move(turn){
     if((path[1] - path[0]) !== moveDir){
         if (hasChappy) {
             hasChappy = false; smokeActive = true; smokeStartTime = Date.now();
-            smokeX = 250 + (path[0] - path[1]) * 50; smokeY = 450 + 40;
+            // ミスした瞬間の身代わりエフェクト位置もチャッピーの位置（一歩前）に調整
+            smokeX = 250 + (path[1] - path[0]) * 50; smokeY = 450 - 40 + 40;
             flashActive = true; facing = prevFacing; return; 
         } else { finishGame("MISS"); return; }
     }
@@ -516,8 +515,22 @@ function draw(){
         if (chappiePath[i]) drawImageWithScale(chappieRImg, x, y + 8, 36, true);
     }
 
-    if (hasChappy) drawImageWithScale(facing === -1 ? chappieLImg : chappieRImg, isJoiningTurn ? centerX : centerX + previousStepX * 50, isJoiningTurn ? playerY + 8 : playerY + 40 + 8, 36, true);
+    // クク本体の描画
     ctx.drawImage(facing === -1 ? deguLImg : deguRImg, centerX - 24, playerY - 40, 48, 48);
+
+    // 👇 【修正箇所】同行中のチャッピーを「一歩前（上の段）」かつ「ククの手前」に描画
+    if (hasChappy) {
+        // 次に進むべき座標（path[1]）から現在の座標（path[0]）を引いた差分で一歩先のX位置を割り出す
+        const nextStepX = path[1] - path[0];
+        const chappieX = centerX + nextStepX * 50;
+        const chappieY = playerY - 40; // ククの一段上の高さ
+        
+        drawImageWithScale(
+            facing === -1 ? chappieLImg : chappieRImg, 
+            chappieX, 
+            chappieY + 8, 36, true
+        );
+    }
 
     if (potatoParticles.length > 0) {
         ctx.save();
