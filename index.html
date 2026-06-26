@@ -13,15 +13,21 @@
 <style>
 html,body{
     margin:0;
+    padding:0;
     background:#111;
     overflow:hidden;
     font-family:sans-serif;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    touch-action:none;
 }
 body{
     display:flex;
     justify-content:center;
     align-items:center;
-    height:100vh;
 }
 #gameWrap{
     position:relative;
@@ -41,12 +47,12 @@ canvas{
     box-sizing:border-box;
 }
 #controls{ bottom:16px; display:none; justify-content:space-between; padding:0 16px; }
-#startControls { bottom:16px; display:flex; justify-content:center; }
+#startControls { bottom:16px; display:flex; flex-direction:column; align-items:center; gap:12px; }
 #gameOverControls{ bottom:16px; display:none; justify-content:center; gap:10px; }
 
 /* 名前入力画面のスタイル */
 #nameInputWrap {
-    bottom: 90px; /* 👈 画面の下側、操作ボタンの少し上の位置に固定 */
+    bottom: 90px;
     left: 50%; transform: translateX(-50%);
     background: rgba(16, 20, 38, 0.95); border: 2px solid cyan; border-radius: 14px;
     padding: 15px; width: 280px; text-align: center; color: white; display: none; z-index: 10;
@@ -59,19 +65,30 @@ canvas{
 /* ランキングボードのスタイル */
 #rankingBoard {
     top: 60px; left: 50%; transform: translateX(-50%);
-    width: 320px; max-height: 240px; background: rgba(0,0,0,0.75);
+    width: 320px; max-height: 260px; background: rgba(0,0,0,0.85);
     border: 1px solid rgba(255,255,255,0.3); border-radius: 8px;
     color: white; font-size: 14px; padding: 10px; overflow-y: auto; display: none; z-index: 5;
 }
+/* ランキングタブ切替用のスタイル */
+.rank-tabs { display: flex; justify-content: space-around; margin-bottom: 8px; gap: 4px; }
+.rank-tab-btn { flex: 1; height: 28px; font-size: 11px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); padding: 0; }
+.rank-tab-btn.active { background: cyan; color: black; border-color: cyan; font-weight: bold; }
 .rank-row { display: flex; justify-content: space-between; margin: 4px 0; border-bottom: 1px dashed #333; }
 
 button{
     width:120px; height:70px; border-radius:14px;
     border:2px solid rgba(255,255,255,.5); background:rgba(255,255,255,.15);
     color:white; font-size:24px; font-weight:bold; backdrop-filter:blur(4px);
-    touch-action:manipulation; -webkit-user-select: none; user-select: none;
+    touch-action:none;
+    -webkit-user-select: none; user-select: none;
 }
 button:active{ background:rgba(255,255,255,.3); }
+
+/* モード選択用スタートボタン */
+.mode-start-btn { width: 200px; height: 50px; font-size: 16px; border-radius: 10px; }
+#startBtnTime { border-color: #ffca28; background: rgba(255, 202, 40, 0.1); }
+#startBtnEndless { border-color: #26a69a; background: rgba(38, 166, 154, 0.1); }
+
 #rankingBtn { width: auto; height: 40px; font-size: 14px; padding: 0 15px; position: absolute; top: 15px; right: 15px; border-radius: 8px; }
 </style>
 </head>
@@ -89,16 +106,22 @@ button:active{ background:rgba(255,255,255,.3); }
     </div>
 
     <div id="rankingBoard">
-        <div style="text-align:center; font-weight:bold; color:cyan; margin-bottom:8px;">🏆 TOP 20 RANKING</div>
+        <div class="rank-tabs">
+            <button id="tabTimeBtn" class="rank-tab-btn active">⏱️ TIME ATTACK</button>
+            <button id="tabEndlessBtn" class="rank-tab-btn">♾️ ENDLESS</button>
+        </div>
         <div id="rankingList"></div>
     </div>
 
-    <div id="startControls"><button id="startBtn">START</button></div>
+    <div id="startControls">
+        <button id="startBtnTime" class="mode-start-btn">⏱️ TIME ATTACK</button>
+        <button id="startBtnEndless" class="mode-start-btn">♾️ ENDLESS (NO TIME)</button>
+    </div>
     <div id="controls">
         <button id="turnBtn">TURN</button>
         <button id="goBtn">GO</button>
     </div>
-    <div id="gameOverControls"><button id="restartBtn">RESTART</button></div>
+    <div id="gameOverControls"><button id="titleBtn" style="width:140px;">TITLE</button></div>
 </div>
 
 <script>
@@ -139,10 +162,15 @@ let bgStars = []; let shootingStar = null; const STAR_COUNT = 30; let targetScro
 let potatoParticles = [];
 let showingRanking = false;
 
+// モード管理用フラグ ('time' または 'endless')
+let gameMode = "time"; 
+// ランキング表示切り替え用の一時的なモード状態
+let rankingViewMode = "time";
+
 // 一度名前を入力したかを管理する永続フラグ
 let hasSavedNameBefore = false;
 let savedPlayerName = "DEGU";
-let canRestart = false; // 👈 【新規追加】リスタートを受け付けるかどうかのフラグ
+let canRestart = false; 
 
 function initStars() {
     bgStars = [];
@@ -205,7 +233,9 @@ function updateButtons(){
 }
 
 function initGame(autoStart = false) {
-    bestScore = Number(localStorage.getItem("bestScore") || 0);
+    const storageKey = gameMode === "endless" ? "bestScore_endless" : "bestScore";
+    bestScore = Number(localStorage.getItem(storageKey) || 0);
+    
     score = 0; gameOver = false; gameOverReason = ""; timeLeft = 30; timeBonus = 0;
     path = [0]; potatoPath = [false]; chappiePath = [false]; hasChappy = false;
     lastPlayerX = 0; previousStepX = 0; isJoiningTurn = false; heartActive = false; smokeActive = false; flashActive = false;
@@ -224,8 +254,9 @@ function initGame(autoStart = false) {
     updateButtons();
 }
 
-function startGame() {
-    isStarted = true; startTime = Date.now(); showingRanking = false; updateButtons();
+function startGame(mode) {
+    gameMode = mode;
+    initGame(true);
 }
 
 // スコア送信処理
@@ -235,27 +266,43 @@ async function saveScoreToFirebase(name, finalScore) {
     savedPlayerName = name;
     hasSavedNameBefore = true;
 
+    const collectionName = gameMode === "endless" ? "rankings_endless" : "rankings";
+
     try {
-        await db.collection("rankings").add({
+        await db.collection(collectionName).add({
             name: name,
             score: finalScore,
             date: firebase.firestore.FieldValue.serverTimestamp()
         });
+        rankingViewMode = gameMode;
         showRankingBoard();
     } catch (e) {
         console.error("スコア保存失敗: ", e);
     }
 }
 
-// ランキング取得処理（トップ20）
+// ランキング取得処理
 async function showRankingBoard() {
     showingRanking = true;
     updateButtons();
+    
+    const tabTime = document.getElementById("tabTimeBtn");
+    const tabEndless = document.getElementById("tabEndlessBtn");
     const listDiv = document.getElementById("rankingList");
+    
+    if (rankingViewMode === "endless") {
+        tabTime.classList.remove("active");
+        tabEndless.classList.add("active");
+    } else {
+        tabTime.classList.add("active");
+        tabEndless.classList.remove("active");
+    }
+    
     listDiv.innerHTML = "<div style='text-align:center;'>Loading...</div>";
+    const collectionName = rankingViewMode === "endless" ? "rankings_endless" : "rankings";
     
     try {
-        const snapshot = await db.collection("rankings").orderBy("score", "desc").limit(20).get();
+        const snapshot = await db.collection(collectionName).orderBy("score", "desc").limit(20).get();
         listDiv.innerHTML = "";
         let rank = 1;
         snapshot.forEach(doc => {
@@ -274,14 +321,14 @@ async function showRankingBoard() {
 function finishGame(reason){
     gameOver = true;
     gameOverReason = reason; 
-    canRestart = false; // 👈 【新規追加】ゲームオーバー直後は強制リスタートロック
+    canRestart = false; 
 
+    const storageKey = gameMode === "endless" ? "bestScore_endless" : "bestScore";
     if(score > bestScore) {
         bestScore = score;
-        localStorage.setItem("bestScore", score);
+        localStorage.setItem(storageKey, score);
     }
 
-    // 1秒後にリスタートの先行入力を解禁する
     setTimeout(() => {
         canRestart = true;
     }, 1000);
@@ -306,14 +353,27 @@ document.getElementById("saveNameBtn").addEventListener("click", () => {
     saveScoreToFirebase(inputName || "DEGU", score);
 });
 
-// RANKINGボタンの切り替え
+// RANKINGボタンのON/OFF切り替え
 document.getElementById("rankingBtn").addEventListener("click", () => {
     if (showingRanking) {
         showingRanking = false;
     } else {
+        rankingViewMode = gameMode;
         showRankingBoard();
     }
     updateButtons();
+});
+
+// ランキング内のタブクリックイベント
+document.getElementById("tabTimeBtn").addEventListener("click", () => {
+    if (rankingViewMode === "time") return;
+    rankingViewMode = "time";
+    showRankingBoard();
+});
+document.getElementById("tabEndlessBtn").addEventListener("click", () => {
+    if (rankingViewMode === "endless") return;
+    rankingViewMode = "endless";
+    showRankingBoard();
 });
 
 function move(turn){
@@ -326,7 +386,8 @@ function move(turn){
     if((path[1] - path[0]) !== moveDir){
         if (hasChappy) {
             hasChappy = false; smokeActive = true; smokeStartTime = Date.now();
-            smokeX = 250 + (path[0] - path[1]) * 50; smokeY = 450 + 40;
+            // プレイヤー自身（チャッピー）がメイン座標で煙になる
+            smokeX = 250; smokeY = 450;
             flashActive = true; facing = prevFacing; return; 
         } else { finishGame("MISS"); return; }
     }
@@ -335,7 +396,11 @@ function move(turn){
     path.shift(); potatoPath.shift(); chappiePath.shift(); 
 
     if (potatoPath[0]) {
-        timeBonus += 3;
+        if (gameMode === "endless") {
+            score += 10; 
+        } else {
+            timeBonus += 3; 
+        }
         createPotatoParticles(250 + (path[0] - path[1]) * 50, 450 - 15);
         potatoPath[0] = false;
     }
@@ -353,13 +418,13 @@ initGame(false);
 
 document.addEventListener("keydown",e=>{
     if (document.getElementById("nameInputWrap").style.display === "block") return;
-    if(!isStarted && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { e.preventDefault(); startGame(); return; }
     
-    // 👈 【修正】gameOver時に、1秒間のインターバル(canRestart)が明けるまでキーによる次のゲーム始動をブロック
+    if(!isStarted && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { e.preventDefault(); startGame(gameMode); return; }
+    
     if(gameOver && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { 
         e.preventDefault(); 
         if (!canRestart) return; 
-        initGame(true); 
+        initGame(false); 
         return; 
     }
     
@@ -368,13 +433,13 @@ document.addEventListener("keydown",e=>{
 });
 
 function attachButtonEvent(btn, callback) { btn.addEventListener("pointerdown", (e) => { e.preventDefault(); callback(); }); }
-attachButtonEvent(document.getElementById("startBtn"), startGame);
+attachButtonEvent(document.getElementById("startBtnTime"), () => startGame("time"));
+attachButtonEvent(document.getElementById("startBtnEndless"), () => startGame("endless"));
 attachButtonEvent(document.getElementById("goBtn"), () => move(false));
 attachButtonEvent(document.getElementById("turnBtn"), () => move(true));
-attachButtonEvent(document.getElementById("restartBtn"), () => {
-    // 👈 念のため画面のUIボタン（マウス/タップ操作）経由でも連打バグが起きないようにガードを適用
+attachButtonEvent(document.getElementById("titleBtn"), () => {
     if (gameOver && !canRestart) return;
-    initGame(true);
+    initGame(false); 
 }); 
 
 function drawImageWithScale(image, targetX, targetY, baseWidth, alignBottom = true) {
@@ -408,8 +473,10 @@ function drawSmokeCloud(x, y, progress) {
 
 function draw(){
     if(isStarted && !gameOver){
-        timeLeft = Math.max(0, 30 + timeBonus - (Date.now() - startTime) / 1000);
-        if(timeLeft <= 0) finishGame("TIME_UP"); 
+        if (gameMode === "time") {
+            timeLeft = Math.max(0, 30 + timeBonus - (Date.now() - startTime) / 1000);
+            if(timeLeft <= 0) finishGame("TIME_UP"); 
+        }
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     currentScrollY += (targetScrollY - currentScrollY) * 0.05; 
@@ -448,8 +515,21 @@ function draw(){
         if (chappiePath[i]) drawImageWithScale(chappieRImg, x, y + 8, 36, true);
     }
 
-    if (hasChappy) drawImageWithScale(facing === -1 ? chappieLImg : chappieRImg, isJoiningTurn ? centerX : centerX + previousStepX * 50, isJoiningTurn ? playerY + 8 : playerY + 40 + 8, 36, true);
-    ctx.drawImage(facing === -1 ? deguLImg : deguRImg, centerX - 24, playerY - 40, 48, 48);
+    // 💡 【修正箇所】キャラクターのメイン描画ロジック
+    if (hasChappy) {
+        // ① チャッピーが操作キャラとしてメイン座標（centerX）に君臨
+        drawImageWithScale(facing === -1 ? chappieLImg : chappieRImg, centerX, playerY, 36, true);
+        
+        // ② ククは出会った瞬間（isJoiningTurn）ならチャッピーと完全同位置（centerX, playerY）に重なる
+        // 次のステップに動いたあとは、1マス後ろ（previousStepX, playerY + 40）をトコトコついていく
+        const kukuX = isJoiningTurn ? centerX : (centerX + previousStepX * 50);
+        const kukuY = isJoiningTurn ? playerY : (playerY + 40);
+        
+        ctx.drawImage(facing === -1 ? deguLImg : deguRImg, kukuX - 24, kukuY - 40, 48, 48);
+    } else {
+        // 通常時はいつものクク単体
+        ctx.drawImage(facing === -1 ? deguLImg : deguRImg, centerX - 24, playerY - 40, 48, 48);
+    }
 
     if (potatoParticles.length > 0) {
         ctx.save();
@@ -469,12 +549,22 @@ function draw(){
     if (smokeActive) { if (Date.now() - smokeStartTime > SMOKE_DURATION) smokeActive = false; else drawSmokeCloud(smokeX, smokeY - 15, (Date.now() - smokeStartTime) / SMOKE_DURATION); }
 
     ctx.fillStyle = "white"; ctx.font = "24px sans-serif";
-    ctx.fillText("Score: " + score, 20, 40); ctx.fillText("Time: " + timeLeft.toFixed(1), 20, 75); ctx.fillText("Best: " + bestScore, 20, 110);
+    ctx.fillText("Score: " + score, 20, 40);
+    
+    if (gameMode === "time") {
+        ctx.fillText("Time: " + timeLeft.toFixed(1), 20, 75);
+        ctx.fillText("Best: " + bestScore, 20, 110);
+    } else {
+        ctx.fillStyle = "#26a69a";
+        ctx.fillText("Mode: ENDLESS", 20, 75);
+        ctx.fillStyle = "white";
+        ctx.fillText("Best: " + bestScore, 20, 110);
+    }
 
     if (!isStarted) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "cyan"; ctx.font = "40px sans-serif"; ctx.textAlign = "center"; ctx.fillText("Kuku's Stairs", canvas.width / 2, 220);
-        ctx.fillStyle = "white"; ctx.font = "20px sans-serif"; ctx.fillText("Press START to Play", canvas.width / 2, 280); ctx.textAlign = "left"; 
+        ctx.fillStyle = "cyan"; ctx.font = "40px sans-serif"; ctx.textAlign = "center"; ctx.fillText("Kuku's Stairs", canvas.width / 2, 200);
+        ctx.fillStyle = "white"; ctx.font = "18px sans-serif"; ctx.fillText("Select Mode to Play", canvas.width / 2, 250); ctx.textAlign = "left"; 
     }
     if(gameOver){
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
