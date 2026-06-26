@@ -41,12 +41,12 @@ canvas{
     box-sizing:border-box;
 }
 #controls{ bottom:16px; display:none; justify-content:space-between; padding:0 16px; }
-#startControls { bottom:16px; display:flex; justify-content:center; }
+#startControls { bottom:16px; display:flex; flex-direction:column; align-items:center; gap:12px; }
 #gameOverControls{ bottom:16px; display:none; justify-content:center; gap:10px; }
 
 /* 名前入力画面のスタイル */
 #nameInputWrap {
-    bottom: 90px; /* 👈 画面の下側、操作ボタンの少し上の位置に固定 */
+    bottom: 90px;
     left: 50%; transform: translateX(-50%);
     background: rgba(16, 20, 38, 0.95); border: 2px solid cyan; border-radius: 14px;
     padding: 15px; width: 280px; text-align: center; color: white; display: none; z-index: 10;
@@ -72,6 +72,12 @@ button{
     touch-action:manipulation; -webkit-user-select: none; user-select: none;
 }
 button:active{ background:rgba(255,255,255,.3); }
+
+/* モード選択用スタートボタンのカスタム幅 */
+.mode-start-btn { width: 200px; height: 50px; font-size: 16px; border-radius: 10px; }
+#startBtnTime { border-color: #ffca28; background: rgba(255, 202, 40, 0.1); }
+#startBtnEndless { border-color: #26a69a; background: rgba(38, 166, 154, 0.1); }
+
 #rankingBtn { width: auto; height: 40px; font-size: 14px; padding: 0 15px; position: absolute; top: 15px; right: 15px; border-radius: 8px; }
 </style>
 </head>
@@ -89,11 +95,14 @@ button:active{ background:rgba(255,255,255,.3); }
     </div>
 
     <div id="rankingBoard">
-        <div style="text-align:center; font-weight:bold; color:cyan; margin-bottom:8px;">🏆 TOP 20 RANKING</div>
+        <div id="rankingTitle" style="text-align:center; font-weight:bold; color:cyan; margin-bottom:8px;">🏆 TOP 20 RANKING</div>
         <div id="rankingList"></div>
     </div>
 
-    <div id="startControls"><button id="startBtn">START</button></div>
+    <div id="startControls">
+        <button id="startBtnTime" class="mode-start-btn">⏱️ TIME ATTACK</button>
+        <button id="startBtnEndless" class="mode-start-btn">♾️ ENDLESS (NO TIME)</button>
+    </div>
     <div id="controls">
         <button id="turnBtn">TURN</button>
         <button id="goBtn">GO</button>
@@ -139,10 +148,13 @@ let bgStars = []; let shootingStar = null; const STAR_COUNT = 30; let targetScro
 let potatoParticles = [];
 let showingRanking = false;
 
+// モード管理用フラグ ('time' または 'endless')
+let gameMode = "time"; 
+
 // 一度名前を入力したかを管理する永続フラグ
 let hasSavedNameBefore = false;
 let savedPlayerName = "DEGU";
-let canRestart = false; // 👈 【新規追加】リスタートを受け付けるかどうかのフラグ
+let canRestart = false; 
 
 function initStars() {
     bgStars = [];
@@ -205,7 +217,10 @@ function updateButtons(){
 }
 
 function initGame(autoStart = false) {
-    bestScore = Number(localStorage.getItem("bestScore") || 0);
+    // ローカルストレージのベストスコアキーをモード別に分ける
+    const storageKey = gameMode === "endless" ? "bestScore_endless" : "bestScore";
+    bestScore = Number(localStorage.getItem(storageKey) || 0);
+    
     score = 0; gameOver = false; gameOverReason = ""; timeLeft = 30; timeBonus = 0;
     path = [0]; potatoPath = [false]; chappiePath = [false]; hasChappy = false;
     lastPlayerX = 0; previousStepX = 0; isJoiningTurn = false; heartActive = false; smokeActive = false; flashActive = false;
@@ -224,19 +239,23 @@ function initGame(autoStart = false) {
     updateButtons();
 }
 
-function startGame() {
-    isStarted = true; startTime = Date.now(); showingRanking = false; updateButtons();
+function startGame(mode) {
+    gameMode = mode;
+    initGame(true);
 }
 
-// スコア送信処理
+// スコア送信処理（モードによって保存先コレクションを切り替え）
 async function saveScoreToFirebase(name, finalScore) {
     if(!name) name = "DEGU";
     
     savedPlayerName = name;
     hasSavedNameBefore = true;
 
+    // モードによって保存するFirestoreのコレクション名を変更
+    const collectionName = gameMode === "endless" ? "rankings_endless" : "rankings";
+
     try {
-        await db.collection("rankings").add({
+        await db.collection(collectionName).add({
             name: name,
             score: finalScore,
             date: firebase.firestore.FieldValue.serverTimestamp()
@@ -247,15 +266,26 @@ async function saveScoreToFirebase(name, finalScore) {
     }
 }
 
-// ランキング取得処理（トップ20）
+// ランキング取得処理（モードに応じて表示対象を切り替え）
 async function showRankingBoard() {
     showingRanking = true;
     updateButtons();
+    
+    const titleDiv = document.getElementById("rankingTitle");
     const listDiv = document.getElementById("rankingList");
+    
+    // タイトルの表記を現在のモードに合わせる
+    if (gameMode === "endless") {
+        titleDiv.innerHTML = "🏆 ENDLESS TOP 20";
+    } else {
+        titleDiv.innerHTML = "🏆 TIME ATTACK TOP 20";
+    }
+    
     listDiv.innerHTML = "<div style='text-align:center;'>Loading...</div>";
+    const collectionName = gameMode === "endless" ? "rankings_endless" : "rankings";
     
     try {
-        const snapshot = await db.collection("rankings").orderBy("score", "desc").limit(20).get();
+        const snapshot = await db.collection(collectionName).orderBy("score", "desc").limit(20).get();
         listDiv.innerHTML = "";
         let rank = 1;
         snapshot.forEach(doc => {
@@ -274,14 +304,14 @@ async function showRankingBoard() {
 function finishGame(reason){
     gameOver = true;
     gameOverReason = reason; 
-    canRestart = false; // 👈 【新規追加】ゲームオーバー直後は強制リスタートロック
+    canRestart = false; 
 
+    const storageKey = gameMode === "endless" ? "bestScore_endless" : "bestScore";
     if(score > bestScore) {
         bestScore = score;
-        localStorage.setItem("bestScore", score);
+        localStorage.setItem(storageKey, score);
     }
 
-    // 1秒後にリスタートの先行入力を解禁する
     setTimeout(() => {
         canRestart = true;
     }, 1000);
@@ -335,7 +365,11 @@ function move(turn){
     path.shift(); potatoPath.shift(); chappiePath.shift(); 
 
     if (potatoPath[0]) {
-        timeBonus += 3;
+        if (gameMode === "endless") {
+            score += 10; // 👈 エンドレスモード時はサツマイモを食べると【+10点】
+        } else {
+            timeBonus += 3; // 👈 タイムアタック時は通常通り【時間+3秒】
+        }
         createPotatoParticles(250 + (path[0] - path[1]) * 50, 450 - 15);
         potatoPath[0] = false;
     }
@@ -353,9 +387,10 @@ initGame(false);
 
 document.addEventListener("keydown",e=>{
     if (document.getElementById("nameInputWrap").style.display === "block") return;
-    if(!isStarted && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { e.preventDefault(); startGame(); return; }
     
-    // 👈 【修正】gameOver時に、1秒間のインターバル(canRestart)が明けるまでキーによる次のゲーム始動をブロック
+    // タイトル画面でSpace / Controlが押された場合は、デフォルトで直前に遊んでいたモード（またはTime Attack）で開始
+    if(!isStarted && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { e.preventDefault(); startGame(gameMode); return; }
+    
     if(gameOver && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { 
         e.preventDefault(); 
         if (!canRestart) return; 
@@ -368,11 +403,11 @@ document.addEventListener("keydown",e=>{
 });
 
 function attachButtonEvent(btn, callback) { btn.addEventListener("pointerdown", (e) => { e.preventDefault(); callback(); }); }
-attachButtonEvent(document.getElementById("startBtn"), startGame);
+attachButtonEvent(document.getElementById("startBtnTime"), () => startGame("time"));
+attachButtonEvent(document.getElementById("startBtnEndless"), () => startGame("endless"));
 attachButtonEvent(document.getElementById("goBtn"), () => move(false));
 attachButtonEvent(document.getElementById("turnBtn"), () => move(true));
 attachButtonEvent(document.getElementById("restartBtn"), () => {
-    // 👈 念のため画面のUIボタン（マウス/タップ操作）経由でも連打バグが起きないようにガードを適用
     if (gameOver && !canRestart) return;
     initGame(true);
 }); 
@@ -408,8 +443,10 @@ function drawSmokeCloud(x, y, progress) {
 
 function draw(){
     if(isStarted && !gameOver){
-        timeLeft = Math.max(0, 30 + timeBonus - (Date.now() - startTime) / 1000);
-        if(timeLeft <= 0) finishGame("TIME_UP"); 
+        if (gameMode === "time") {
+            timeLeft = Math.max(0, 30 + timeBonus - (Date.now() - startTime) / 1000);
+            if(timeLeft <= 0) finishGame("TIME_UP"); 
+        }
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     currentScrollY += (targetScrollY - currentScrollY) * 0.05; 
@@ -469,12 +506,23 @@ function draw(){
     if (smokeActive) { if (Date.now() - smokeStartTime > SMOKE_DURATION) smokeActive = false; else drawSmokeCloud(smokeX, smokeY - 15, (Date.now() - smokeStartTime) / SMOKE_DURATION); }
 
     ctx.fillStyle = "white"; ctx.font = "24px sans-serif";
-    ctx.fillText("Score: " + score, 20, 40); ctx.fillText("Time: " + timeLeft.toFixed(1), 20, 75); ctx.fillText("Best: " + bestScore, 20, 110);
+    ctx.fillText("Score: " + score, 20, 40);
+    
+    // エンドレスモード時はタイム表示を隠す
+    if (gameMode === "time") {
+        ctx.fillText("Time: " + timeLeft.toFixed(1), 20, 75);
+        ctx.fillText("Best: " + bestScore, 20, 110);
+    } else {
+        ctx.fillStyle = "#26a69a";
+        ctx.fillText("Mode: ENDLESS", 20, 75);
+        ctx.fillStyle = "white";
+        ctx.fillText("Best: " + bestScore, 20, 110);
+    }
 
     if (!isStarted) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "cyan"; ctx.font = "40px sans-serif"; ctx.textAlign = "center"; ctx.fillText("Kuku's Stairs", canvas.width / 2, 220);
-        ctx.fillStyle = "white"; ctx.font = "20px sans-serif"; ctx.fillText("Press START to Play", canvas.width / 2, 280); ctx.textAlign = "left"; 
+        ctx.fillStyle = "cyan"; ctx.font = "40px sans-serif"; ctx.textAlign = "center"; ctx.fillText("Kuku's Stairs", canvas.width / 2, 200);
+        ctx.fillStyle = "white"; ctx.font = "18px sans-serif"; ctx.fillText("Select Mode to Play", canvas.width / 2, 250); ctx.textAlign = "left"; 
     }
     if(gameOver){
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
