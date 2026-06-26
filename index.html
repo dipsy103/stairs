@@ -11,17 +11,24 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
 <style>
+/* 👇 画面全体を固定し、連打による誤スクロールやバウンスを完全に防止 */
 html,body{
     margin:0;
+    padding:0;
     background:#111;
     overflow:hidden;
     font-family:sans-serif;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    touch-action:none;
 }
 body{
     display:flex;
     justify-content:center;
     align-items:center;
-    height:100vh;
 }
 #gameWrap{
     position:relative;
@@ -73,7 +80,9 @@ button{
     width:120px; height:70px; border-radius:14px;
     border:2px solid rgba(255,255,255,.5); background:rgba(255,255,255,.15);
     color:white; font-size:24px; font-weight:bold; backdrop-filter:blur(4px);
-    touch-action:manipulation; -webkit-user-select: none; user-select: none;
+    /* 👇 連打時の拡大動作やスクロールトリガーを防止 */
+    touch-action:none;
+    -webkit-user-select: none; user-select: none;
 }
 button:active{ background:rgba(255,255,255,.3); }
 
@@ -267,7 +276,6 @@ async function saveScoreToFirebase(name, finalScore) {
             score: finalScore,
             date: firebase.firestore.FieldValue.serverTimestamp()
         });
-        // スコア送信後は、遊んでいたモードのランキングを表示させる
         rankingViewMode = gameMode;
         showRankingBoard();
     } catch (e) {
@@ -275,7 +283,7 @@ async function saveScoreToFirebase(name, finalScore) {
     }
 }
 
-// ランキング取得処理（閲覧対象のモード設定に従う）
+// ランキング取得処理
 async function showRankingBoard() {
     showingRanking = true;
     updateButtons();
@@ -284,7 +292,6 @@ async function showRankingBoard() {
     const tabEndless = document.getElementById("tabEndlessBtn");
     const listDiv = document.getElementById("rankingList");
     
-    // タブのアクティブ表示を切り替え
     if (rankingViewMode === "endless") {
         tabTime.classList.remove("active");
         tabEndless.classList.add("active");
@@ -353,7 +360,6 @@ document.getElementById("rankingBtn").addEventListener("click", () => {
     if (showingRanking) {
         showingRanking = false;
     } else {
-        // 開いたときは直前のゲームモードに合わせる
         rankingViewMode = gameMode;
         showRankingBoard();
     }
@@ -414,14 +420,12 @@ initGame(false);
 document.addEventListener("keydown",e=>{
     if (document.getElementById("nameInputWrap").style.display === "block") return;
     
-    // タイトル画面でSpace / Controlが押された場合は、直前のモードで開始
     if(!isStarted && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { e.preventDefault(); startGame(gameMode); return; }
     
-    // 👈 ゲームオーバー時にキーが押されたら、自動で「タイトル（モード選択）に戻る」挙動に変更
     if(gameOver && (e.code === "Space" || e.code === "ControlLeft" || e.code === "ControlRight")) { 
         e.preventDefault(); 
         if (!canRestart) return; 
-        initGame(false); // autoStartをfalseにしてタイトル画面へ
+        initGame(false); 
         return; 
     }
     
@@ -434,7 +438,6 @@ attachButtonEvent(document.getElementById("startBtnTime"), () => startGame("time
 attachButtonEvent(document.getElementById("startBtnEndless"), () => startGame("endless"));
 attachButtonEvent(document.getElementById("goBtn"), () => move(false));
 attachButtonEvent(document.getElementById("turnBtn"), () => move(true));
-// 👈 TITLEボタンが押されたらタイトル画面（isStarted = false状態）へ戻す
 attachButtonEvent(document.getElementById("titleBtn"), () => {
     if (gameOver && !canRestart) return;
     initGame(false); 
