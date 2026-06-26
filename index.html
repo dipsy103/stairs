@@ -386,8 +386,8 @@ function move(turn){
     if((path[1] - path[0]) !== moveDir){
         if (hasChappy) {
             hasChappy = false; smokeActive = true; smokeStartTime = Date.now();
-            // ミスした瞬間の身代わりエフェクト位置もチャッピーの位置（一歩前）に調整
-            smokeX = 250 + (path[1] - path[0]) * 50; smokeY = 450 - 40 + 40;
+            // プレイヤー自身（チャッピー）がメイン座標で煙になる
+            smokeX = 250; smokeY = 450;
             flashActive = true; facing = prevFacing; return; 
         } else { finishGame("MISS"); return; }
     }
@@ -515,21 +515,20 @@ function draw(){
         if (chappiePath[i]) drawImageWithScale(chappieRImg, x, y + 8, 36, true);
     }
 
-    // クク本体の描画
-    ctx.drawImage(facing === -1 ? deguLImg : deguRImg, centerX - 24, playerY - 40, 48, 48);
-
-    // 👇 【修正箇所】同行中のチャッピーを「一歩前（上の段）」かつ「ククの手前」に描画
+    // 👇 【修正箇所】キャラクターのメイン描画ロジック（主役交代システム）
     if (hasChappy) {
-        // 次に進むべき座標（path[1]）から現在の座標（path[0]）を引いた差分で一歩先のX位置を割り出す
-        const nextStepX = path[1] - path[0];
-        const chappieX = centerX + nextStepX * 50;
-        const chappieY = playerY - 40; // ククの一段上の高さ
+        // ① チャッピーが操作キャラとしてメイン座標（centerX）に君臨
+        drawImageWithScale(facing === -1 ? chappieLImg : chappieRImg, centerX, playerY, 36, true);
         
-        drawImageWithScale(
-            facing === -1 ? chappieLImg : chappieRImg, 
-            chappieX, 
-            chappieY + 8, 36, true
-        );
+        // ② ククは一歩後ろ（1マス手前の階段下）をトコトコついていく
+        // 拾った直後（isJoiningTurn）なら元の位置、動いた後なら前回踏み外さなかったマスのX座標
+        const kukuX = centerX + previousStepX * 50;
+        const kukuY = isJoiningTurn ? playerY : playerY + 40; // 動いた後は一段下に下がる
+        
+        ctx.drawImage(facing === -1 ? deguLImg : deguRImg, kukuX - 24, kukuY - 40, 48, 48);
+    } else {
+        // 通常時はいつものクク単体
+        ctx.drawImage(facing === -1 ? deguLImg : deguRImg, centerX - 24, playerY - 40, 48, 48);
     }
 
     if (potatoParticles.length > 0) {
