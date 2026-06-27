@@ -302,7 +302,7 @@ async function showRankingBoard() {
     const collectionName = rankingViewMode === "endless" ? "rankings_endless" : "rankings";
     
     try {
-        const snapshot = await db.collection(collectionName).orderBy("score", "desc").limit(20).get();
+        const snapshot = await db.collection(collectionName).orderBy("score", "desc").limit(100).get();
         listDiv.innerHTML = "";
         let rank = 1;
         snapshot.forEach(doc => {
